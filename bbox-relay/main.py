@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+import time
+from urllib.parse import urlencode
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,45 +26,89 @@ Base.metadata.create_all(bind=engine)
 # Headers that must not be blindly forwarded across the proxy boundary.
 _HOP_BY_HOP = {"host", "content-length", "connection", "transfer-encoding", "keep-alive"}
 
+# Simple in-memory rate limiting for /login (mirrors tunnel.py's in-process-only state).
+_LOGIN_FAILURE_LIMIT = 5
+_LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60
+_login_failures: dict[str, list[float]] = {}
+
+
+def _check_rate_limit(username: str) -> None:
+    now = time.time()
+    attempts = [t for t in _login_failures.get(username, []) if now - t < _LOGIN_FAILURE_WINDOW_SECONDS]
+    _login_failures[username] = attempts
+    if len(attempts) >= _LOGIN_FAILURE_LIMIT:
+        raise HTTPException(status_code=429, detail="Too many failed login attempts. Try again later.")
+
+
+def _record_login_failure(username: str) -> None:
+    _login_failures.setdefault(username, []).append(time.time())
+
+
+def _clear_login_failures(username: str) -> None:
+    _login_failures.pop(username, None)
+
 
 @app.post("/agent/register", status_code=201)
-def register_agent(db: Session = Depends(get_db)):
+def register_agent(body: dict = Body(...), db: Session = Depends(get_db)):
+    username = str(body.get("username", "")).strip()
+    if not username:
+        raise HTTPException(status_code=422, detail="username is required.")
+
     device_id = auth.new_device_id()
     device_secret = auth.new_device_secret()
-    pairing_code = auth.new_pairing_code()
 
     device = models.Device(
         id=device_id,
         secret_hash=auth.hash_secret(device_secret),
-        pairing_code=pairing_code,
-        pairing_code_expires_at=datetime.utcnow() + timedelta(minutes=settings.pairing_code_expire_minutes),
+        username=username,
     )
     db.add(device)
     db.commit()
 
-    return {"device_id": device_id, "device_secret": device_secret, "pairing_code": pairing_code}
+    return {"device_id": device_id, "device_secret": device_secret}
 
 
-@app.post("/pair")
-def pair(body: dict = Body(...), db: Session = Depends(get_db)):
-    code = str(body.get("pairing_code", "")).strip()
-    if not code:
-        raise HTTPException(status_code=422, detail="pairing_code is required.")
+@app.post("/login")
+async def login(body: dict = Body(...), db: Session = Depends(get_db)):
+    username = str(body.get("username", "")).strip()
+    password = str(body.get("password", ""))
+    if not username or not password:
+        raise HTTPException(status_code=422, detail="username and password are required.")
+
+    _check_rate_limit(username)
 
     device = (
         db.query(models.Device)
-        .filter(models.Device.pairing_code == code)
+        .filter(models.Device.username == username)
+        .order_by(models.Device.created_at.desc())
         .first()
     )
-    if not device or not device.pairing_code_expires_at or device.pairing_code_expires_at < datetime.utcnow():
-        raise HTTPException(status_code=404, detail="Invalid or expired pairing code.")
+    if not device:
+        _record_login_failure(username)
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
 
-    device.pairing_code = None
-    device.pairing_code_expires_at = None
-    db.commit()
+    if not tunnel.is_online(device.id):
+        raise HTTPException(status_code=503, detail="Desktop device is offline.")
 
+    form_body = urlencode({"username": username, "password": password}).encode()
+    headers = {"content-type": "application/x-www-form-urlencoded"}
+
+    try:
+        status, _resp_headers, _resp_body = await tunnel.forward(
+            device.id, "POST", "/auth/login", headers, form_body, timeout=settings.request_timeout_seconds
+        )
+    except DeviceOffline:
+        raise HTTPException(status_code=503, detail="Desktop device is offline.")
+    except TimeoutError:
+        raise HTTPException(status_code=504, detail="Desktop device timed out.")
+
+    if status != 200:
+        _record_login_failure(username)
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    _clear_login_failures(username)
     token = auth.create_session_token(device.id)
-    return {"access_token": token, "device_id": device.id}
+    return {"access_token": token, "device_id": device.id, "username": username}
 
 
 @app.websocket("/agent/ws")

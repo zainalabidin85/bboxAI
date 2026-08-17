@@ -79,7 +79,7 @@ async def ensure_local_token(cfg: dict) -> None:
 
 async def register_with_relay(cfg: dict) -> None:
     async with httpx.AsyncClient() as client:
-        resp = await client.post(f"{cfg['relay_url']}/agent/register")
+        resp = await client.post(f"{cfg['relay_url']}/agent/register", json={"username": cfg["username"]})
         resp.raise_for_status()
         data = resp.json()
     cfg["device_id"] = data["device_id"]
@@ -87,9 +87,8 @@ async def register_with_relay(cfg: dict) -> None:
     save_config(cfg)
 
     print("=" * 50)
-    print("This desktop is not paired yet.")
-    print(f"Pairing code: {data['pairing_code']}")
-    print("Enter this code in the remote web app within 10 minutes.")
+    print("Registered with the relay for remote access.")
+    print(f"Log in at your bboxai-remote URL with account '{cfg['username']}' to connect.")
     print("=" * 50)
 
 

@@ -10,6 +10,7 @@ import type {
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
 const TOKEN_KEY = "bboxai_token";
 
 export function getToken(): string | null {
@@ -35,6 +36,11 @@ client.interceptors.request.use((config) => {
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function login(username: string, password: string) {
+  if (IS_REMOTE) {
+    const { data } = await axios.post(`${BASE_URL}/login`, { username, password });
+    setToken(data.access_token);
+    return data as { access_token: string; device_id: string; username: string };
+  }
   const form = new URLSearchParams();
   form.set("username", username);
   form.set("password", password);
@@ -56,14 +62,6 @@ export async function register(username: string, email: string, password: string
 
 export function logout() {
   setToken(null);
-}
-
-// ── Remote pairing (VITE_REMOTE builds, talking to bbox-relay) ─────────────────
-
-export async function pairDevice(pairingCode: string) {
-  const { data } = await axios.post(`${BASE_URL}/pair`, { pairing_code: pairingCode });
-  setToken(data.access_token);
-  return data as { access_token: string; device_id: string };
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────

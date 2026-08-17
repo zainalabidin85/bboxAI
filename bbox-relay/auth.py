@@ -18,10 +18,6 @@ def new_device_secret() -> str:
     return secrets.token_urlsafe(32)
 
 
-def new_pairing_code() -> str:
-    return f"{secrets.randbelow(1_000_000):06d}"
-
-
 def hash_secret(secret: str) -> str:
     return hashlib.sha256(secret.encode()).hexdigest()
 

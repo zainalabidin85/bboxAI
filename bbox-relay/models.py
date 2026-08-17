@@ -11,6 +11,5 @@ class Device(Base):
 
     id: Mapped[str] = mapped_column(String(24), primary_key=True)
     secret_hash: Mapped[str] = mapped_column(String(128))
-    pairing_code: Mapped[str | None] = mapped_column(String(6), nullable=True, index=True)
-    pairing_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    username: Mapped[str] = mapped_column(String(150), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

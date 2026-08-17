@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
-import { PairPage } from "./pages/PairPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { AnnotatePage } from "./pages/AnnotatePage";
@@ -21,14 +20,8 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/" element={<Root />} />
-        {IS_REMOTE ? (
-          <Route path="/login" element={<PairPage />} />
-        ) : (
-          <>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-          </>
-        )}
+        <Route path="/login" element={<LoginPage />} />
+        {!IS_REMOTE && <Route path="/register" element={<RegisterPage />} />}
         <Route element={<ProtectedRoute />}>
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />

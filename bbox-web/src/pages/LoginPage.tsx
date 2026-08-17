@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
+const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
+
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -45,9 +47,11 @@ export function LoginPage() {
         <button className="btn-primary" type="submit" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
-        <p>
-          No account? <Link to="/register">Register</Link>
-        </p>
+        {!IS_REMOTE && (
+          <p>
+            No account? <Link to="/register">Register</Link>
+          </p>
+        )}
       </form>
     </div>
   );

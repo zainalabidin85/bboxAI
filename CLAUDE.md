@@ -83,7 +83,7 @@ flutter build apk --release
 
 `bbox-api` has its own user system — `POST /auth/register`, `POST /auth/login` (OAuth2 password flow, JWT bearer, 7-day expiry, bcrypt password hashes). Every project is owned by a `User`; almost every endpoint requires `Depends(get_current_user)` and ownership is checked with `_require_owner` in `routers/projects.py`. Projects can be marked `is_public` to appear in the cross-user model catalog (`/models` — see Catalog below) and to allow read access (`GET /projects/{id}`) to non-owners.
 
-`bbox-relay` has a **separate** auth system for desktop devices, unrelated to bboxAI user accounts: a device registers (`POST /agent/register`) and gets a `device_id`/`device_secret` plus a short-lived pairing code; a web client exchanges that pairing code (`POST /pair`) for a relay session token. This is purely about authorizing the tunnel, not about bboxAI project ownership — the desktop agent still logs into `bbox-api` with a normal bboxAI username/password to get its own JWT for calls it forwards.
+`bbox-relay` has a **separate** auth system for desktop devices, unrelated to bboxAI project ownership: a device registers (`POST /agent/register`, providing the bboxAI username it represents) and gets a `device_id`/`device_secret`; a web client logs in with that same bboxAI username/password via `POST /login`, which the relay verifies by forwarding the login through the live tunnel to that device's own `bbox-api` (not by storing a copy of the password) before minting a relay session token. This is purely about authorizing the tunnel — the desktop agent still logs into `bbox-api` separately with a normal bboxAI username/password to get its own JWT for calls it forwards.
 
 ### App Navigation Flow (mobile & web, same shape)
 
@@ -105,7 +105,7 @@ Upload → POST /projects/{id}/upload  (or the video commit/skip flow)
 Stats/Training screen  (dataset stats + training progress/metrics chart + PDF report + weights download)
 ```
 
-`bbox-web` additionally has a **Pairing page** (`PairPage.tsx`) for entering a `bbox-relay` pairing code to connect to a desktop-hosted `bbox-api`, and a public **model Catalog** view sourced from `GET /models`.
+`bbox-web`'s `VITE_REMOTE=true` build reuses the normal `LoginPage.tsx` — `client.ts`'s `login()` branches at build time to hit `bbox-relay`'s `POST /login` instead of `bbox-api`'s `POST /auth/login` — so remote users log in with their normal bboxAI credentials to reach a desktop-hosted `bbox-api`. There's also a public **model Catalog** view sourced from `GET /models`.
 
 ### Project Model
 
@@ -185,12 +185,12 @@ Training config comes from the trigger request body (not hardcoded). Defaults: `
 Lets a `bbox-web` client reach a `bbox-api` running on someone's desktop (e.g. behind NAT, no public IP) without exposing it directly:
 
 1. `bbox-agent` runs next to a local `bbox-api`, logs into it with normal bboxAI credentials (stores the resulting JWT, refreshed ~6 days before its 7-day expiry).
-2. On first run it registers with `bbox-relay` (`POST /agent/register`) to get a `device_id`/`device_secret` and prints a short pairing code (10-minute expiry).
-3. The web user enters that pairing code in `PairPage.tsx`; `bbox-relay` exchanges it (`POST /pair`) for a relay session token tied to the `device_id`.
+2. On first run it registers with `bbox-relay` (`POST /agent/register`, body `{"username"}`) to get a `device_id`/`device_secret`; the relay stores the username against that device row.
+3. The web user logs into `bboxai-remote.unitani.com` (`LoginPage.tsx`, same component the local build uses) with their normal bboxAI username/password. `bbox-relay`'s `POST /login` looks up the device registered for that username, forwards a `POST /auth/login` to it through the live tunnel (`tunnel.forward`, the same mechanism the catch-all proxy route uses), and — only if that verifies — mints a relay session JWT (`auth.create_session_token`). An in-memory per-username rate limit (5 failures / 15 min) guards this endpoint since it's now internet-facing password verification, not a possession-based pairing code.
 4. `bbox-agent` holds a persistent WebSocket (`/agent/ws`) to `bbox-relay`. Any HTTP request to `bbox-relay`'s catch-all proxy route (authenticated with the relay session token) is serialized (method/path/headers/base64 body), sent down that socket, executed locally against `bbox-api` by the agent, and the response is shipped back the same way (`bbox-relay/tunnel.py` correlates requests via `req_id` futures).
 5. Reconnects with backoff (`2,4,8,16,30s`) if the tunnel drops; the relay marks the device offline and fails in-flight requests immediately (`DeviceOffline`) rather than hanging.
 
-This is independent of bboxAI's own auth — it's strictly about proxying to a desktop instance.
+This is independent of bboxAI's own auth in the sense that `bbox-relay` has its own device/session model — but unlike the old pairing-code design, the *login* on `bboxai-remote.unitani.com` now checks a real bboxAI account password (verified against the paired device's own `bbox-api`, not duplicated on the relay).
 
 ### Flutter Packages
 

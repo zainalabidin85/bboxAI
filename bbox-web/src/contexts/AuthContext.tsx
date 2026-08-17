@@ -5,7 +5,6 @@ interface AuthContextValue {
   displayName: string | null;
   isLoggedIn: boolean;
   login: (username: string, password: string) => Promise<void>;
-  pair: (pairingCode: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -22,13 +21,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setDisplayName(data.username);
   }
 
-  async function pair(pairingCode: string) {
-    const data = await api.pairDevice(pairingCode);
-    const label = `Device ${data.device_id.slice(0, 8)}`;
-    localStorage.setItem("bboxai_display_name", label);
-    setDisplayName(label);
-  }
-
   function logout() {
     api.logout();
     localStorage.removeItem("bboxai_display_name");
@@ -38,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isLoggedIn = Boolean(api.getToken());
 
   return (
-    <AuthContext.Provider value={{ displayName, isLoggedIn, login, pair, logout }}>
+    <AuthContext.Provider value={{ displayName, isLoggedIn, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
