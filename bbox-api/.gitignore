@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+storage/projects/*
+!storage/projects/.gitkeep
+weights/*.pt

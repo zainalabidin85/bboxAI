@@ -1,0 +1,13 @@
+fastapi==0.111.0
+pydantic-settings==2.3.0
+uvicorn==0.30.0
+python-multipart==0.0.9
+python-dotenv==1.0.1
+ultralytics==8.2.0
+opencv-python-headless==4.10.0.84
+reportlab==4.2.5
+sqlalchemy==2.0.31
+psycopg2-binary==2.9.9
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+email-validator==2.2.0
