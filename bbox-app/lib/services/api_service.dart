@@ -13,9 +13,11 @@ class ApiService {
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
+  static const _defaultServerUrl = 'https://bboxai.unitani.com';
+
   static Future<String> getServerUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyServerUrl) ?? '';
+    return prefs.getString(_keyServerUrl) ?? _defaultServerUrl;
   }
 
   static Future<String> getTaggerName() async {

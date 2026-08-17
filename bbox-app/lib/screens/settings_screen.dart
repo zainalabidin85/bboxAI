@@ -78,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 controller: _urlController,
                 decoration: const InputDecoration(
                   labelText: 'Server URL',
-                  hintText: 'http://192.168.x.x:8000',
+                  hintText: 'https://bboxai.unitani.com',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.url,
