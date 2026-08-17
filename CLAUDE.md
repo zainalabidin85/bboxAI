@@ -4,11 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**bboxAI** is a generic multi-class image annotation and YOLOv8 model training system. It is a flexible evolution of the `mlharum-collector` from the MLharum project — domain-agnostic, multi-class, multi-project.
+**bboxAI** is a generic multi-class image/video annotation and YOLOv8 model training system. It is a flexible evolution of the `mlharum-collector` from the MLharum project — domain-agnostic, multi-class, multi-project, multi-user.
 
-Two components:
+Five components:
 - **`bbox-app/`** — Flutter mobile app (Android-first)
-- **`bbox-api/`** — FastAPI backend (Python)
+- **`bbox-web/`** — React + TypeScript + Vite web client (login, projects, annotate, train, pairing)
+- **`bbox-api/`** — FastAPI backend (Python) — the source of truth: auth, projects, annotation storage, training, reporting
+- **`bbox-relay/`** — FastAPI relay/tunnel server that lets `bbox-web` reach a `bbox-api` instance running on someone's desktop behind NAT
+- **`bbox-agent/`** — Python desktop agent that pairs with `bbox-relay` and forwards proxied requests to a local `bbox-api`
 
 Reference implementation (single-class, single-project baseline): `/home/zainal/innovation/MLharum/mlharum-collector/`
 
@@ -17,9 +20,12 @@ Reference implementation (single-class, single-project baseline): `/home/zainal/
 | Feature | mlharum-collector | bboxAI |
 |---|---|---|
 | Classes | Hardcoded single class (mango) | User-defined classes per project |
-| Datasets | One global dataset | Multiple named projects |
+| Datasets | One global dataset | Multiple named projects, owned by users |
+| Auth | None | Username/password + JWT (`bbox-api`), separate device pairing (`bbox-relay`) |
 | Training config | Fixed (epochs=100, base model fixed) | Configurable: base model, epochs, imgsz |
-| Image source | Camera only | Camera + phone gallery |
+| Image source | Camera only | Camera + phone gallery + video frame extraction |
+| Clients | Flutter app only | Flutter app + React web app, both talking to the same API |
+| Remote access | N/A | Optional relay/agent tunnel so the web app can reach a desktop-hosted API |
 
 ## Development Commands
 
@@ -33,6 +39,35 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 # Swagger UI: http://localhost:8000/docs
 ```
 
+### Relay (bbox-relay) — optional, for remote/tunneled access
+
+```bash
+cd bbox-relay
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+### Desktop agent (bbox-agent) — optional, pairs a local bbox-api with bbox-relay
+
+```bash
+cd bbox-agent
+pip install -r requirements.txt
+python agent.py
+# Prompts for relay URL + bboxAI username/password on first run,
+# stores config in ~/.bboxai/agent.json (chmod 600), prints a pairing code.
+```
+
+### Web app (bbox-web)
+
+```bash
+cd bbox-web
+npm install
+cp .env.example .env
+npm run dev       # vite dev server
+npm run build      # tsc -b && vite build
+```
+
 ### Flutter App (bbox-app)
 
 ```bash
@@ -44,67 +79,118 @@ flutter build apk --release
 
 ## Architecture
 
-### App Navigation Flow
+### Auth
+
+`bbox-api` has its own user system — `POST /auth/register`, `POST /auth/login` (OAuth2 password flow, JWT bearer, 7-day expiry, bcrypt password hashes). Every project is owned by a `User`; almost every endpoint requires `Depends(get_current_user)` and ownership is checked with `_require_owner` in `routers/projects.py`. Projects can be marked `is_public` to appear in the cross-user model catalog (`/models` — see Catalog below) and to allow read access (`GET /projects/{id}`) to non-owners.
+
+`bbox-relay` has a **separate** auth system for desktop devices, unrelated to bboxAI user accounts: a device registers (`POST /agent/register`) and gets a `device_id`/`device_secret` plus a short-lived pairing code; a web client exchanges that pairing code (`POST /pair`) for a relay session token. This is purely about authorizing the tunnel, not about bboxAI project ownership — the desktop agent still logs into `bbox-api` with a normal bboxAI username/password to get its own JWT for calls it forwards.
+
+### App Navigation Flow (mobile & web, same shape)
 
 ```
-Settings screen  (server URL, tagger name)
+Login / Register           (bbox-api auth)
+  ↓
+Settings screen  (server URL, tagger name)          [Flutter only — bbox-web is same-origin]
   ↓
 Projects screen  (list / create / delete projects)
   ↓
-Project detail   (class list, image count, trigger training)
+Project detail   (class list, image count, trigger training, visibility toggle)
   ↓
-Camera/Gallery   (capture or pick image)
+Camera/Gallery/Video  (capture, pick image, or upload video → extract frames)
   ↓
 Annotation screen (draw bboxes, assign class per box)
   ↓
-Upload → POST /projects/{id}/upload
+Upload → POST /projects/{id}/upload  (or the video commit/skip flow)
   ↓
-Stats/Training screen  (dataset stats + training progress, config)
+Stats/Training screen  (dataset stats + training progress/metrics chart + PDF report + weights download)
 ```
+
+`bbox-web` additionally has a **Pairing page** (`PairPage.tsx`) for entering a `bbox-relay` pairing code to connect to a desktop-hosted `bbox-api`, and a public **model Catalog** view sourced from `GET /models`.
 
 ### Project Model
 
-A **project** has:
-- `id` (slug or UUID)
-- `name` (display name)
-- `classes` — ordered list of `{id: int, name: str}` (maps to YOLO class indices)
-- Storage isolated under `storage/projects/{project_id}/images/` and `labels/`
+A **project** (`models.Project` in `bbox-api`) has:
+- `id` — random 12-char hex slug
+- `name` — display name
+- `owner_id` — FK to `User`
+- `is_public` — bool; gates catalog listing and read-only cross-user access
+- `classes` — ordered `BboxClass` rows `{class_index: int, name: str}` (maps to YOLO class indices, ordered by `class_index`)
+- Storage isolated under `storage/projects/{project_id}/{images,labels,dataset,runs,pending,weights}/`
 
-Classes are defined when creating a project and can be extended. Class index order must not change after images are labeled (adding new classes appends; renaming is safe).
+Classes are defined when creating a project and can only be **appended** — `PATCH /projects/{id}/classes` assigns new indices starting after the current max; there is no rename/reorder/delete endpoint, since renumbering would invalidate existing YOLO labels. The API rejects any upload whose `class_id` exceeds the project's current class count (`services/annotations.validate_annotations`).
 
 ### Bounding Box + Class Assignment
 
 Each bbox in the annotation screen has:
-- Drawn rect (normalized 0–1 top-left + size)
-- **Class** — selected from the project's class list via a bottom sheet or inline picker
+- Drawn rect (normalized 0–1 top-left + size: `x, y, w, h`)
+- **Class** — selected from the project's class list via a bottom sheet (Flutter) or `ClassPicker` component (web)
 
-YOLO label format written on server: `{class_id} {cx} {cy} {w} {h}` (one line per box).
+YOLO label format written on server (`services/annotations.save_yolo_labels`): `{class_id} {cx} {cy} {w} {h}` (one line per box, center-based per YOLO convention — the API converts from the top-left `x,y,w,h` it receives).
 
 Upload payload: `POST /projects/{id}/upload` — multipart with `file`, `annotations` JSON (`[{x,y,w,h,class_id}]`), `tagger`, `notes`.
+
+### Video Ingestion (`routers/video.py`, `services/video.py`)
+
+Not in the original design — added since. Flow:
+1. `POST /projects/{id}/videos/upload` (multipart video + `target_fps`) — OpenCV (`cv2`) decodes the video and writes sampled frames as JPEGs to `storage/projects/{id}/pending/{batch_id}/`, returns `{batch_id, frame_count, frames}`.
+2. Client iterates frames, fetching each with `GET /projects/{id}/videos/{batch_id}/{frame_id}/image`.
+3. For each frame: `POST .../commit` (same annotation shape as image upload — moves the pending frame into `images/`+`labels/` via `commit_annotated_image`) or `POST .../skip` (discards it).
+4. `DELETE /projects/{id}/videos/{batch_id}` removes a whole pending batch.
+
+Frame/batch ids are validated against path traversal (`frame_path` rejects `/` and `..`).
 
 ### API Endpoints
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/projects` | List all projects |
-| `POST` | `/projects` | Create project (name + classes JSON) |
-| `GET` | `/projects/{id}` | Project detail + class list |
-| `DELETE` | `/projects/{id}` | Delete project + all data |
+| `POST` | `/auth/register` | Create a bboxAI user |
+| `POST` | `/auth/login` | OAuth2 password login → JWT |
+| `GET` | `/projects` | List current user's projects |
+| `POST` | `/projects` | Create project (name + classes list) |
+| `GET` | `/projects/{id}` | Project detail + class list (owner, or any user if `is_public`) |
+| `DELETE` | `/projects/{id}` | Delete project + all data (owner only) |
+| `PATCH` | `/projects/{id}/classes` | Append new classes (owner only) |
+| `PATCH` | `/projects/{id}/visibility` | Toggle `is_public` (owner only) |
 | `POST` | `/projects/{id}/upload` | Upload annotated image |
 | `GET` | `/projects/{id}/stats` | Image/label/box counts per class |
-| `POST` | `/projects/{id}/train` | Start training (body: base_model, epochs, imgsz) |
+| `POST` | `/projects/{id}/videos/upload` | Upload video, extract frames to a pending batch |
+| `GET` | `/projects/{id}/videos/{batch_id}/{frame_id}/image` | Fetch one pending frame |
+| `POST` | `/projects/{id}/videos/{batch_id}/{frame_id}/commit` | Annotate + commit a pending frame |
+| `POST` | `/projects/{id}/videos/{batch_id}/{frame_id}/skip` | Discard a pending frame |
+| `DELETE` | `/projects/{id}/videos/{batch_id}` | Delete a whole pending batch |
+| `POST` | `/projects/{id}/train` | Start training (body: `base_model`, `epochs`, `imgsz`) |
 | `GET` | `/projects/{id}/train/status` | Poll training state + epoch progress |
-| `GET` | `/training/base-models` | List `.pt` files in `weights/` |
+| `GET` | `/projects/{id}/train/metrics` | Per-epoch metrics rows parsed from Ultralytics' `results.csv` |
+| `GET` | `/projects/{id}/report` | Download generated PDF training report |
+| `GET` | `/projects/{id}/weights/download` | Download `best.pt` for the project |
+| `GET` | `/weights` | List `.pt` files in `weights/` (base models available for training) |
+| `GET` | `/models` | Public catalog — all public projects with a completed trained model |
+| `GET` | `/models/search?classes=a,b` | Search public catalog by class name |
+
+`bbox-relay` exposes its own small surface: `POST /agent/register`, `POST /pair`, `WS /agent/ws` (desktop agent tunnel), and a catch-all `/{full_path}` proxy that forwards any method to the paired desktop's `bbox-api` using a relay session bearer token.
 
 ### Training Pipeline
 
-Same threading pattern as mlharum `trainer.py`:
-1. Validate minimum boxes
-2. Build 80/20 train/val split dataset with `data.yaml` (multi-class: `nc` = project class count, `names` = class name list)
-3. `YOLO(base_model).train(data=yaml, epochs=N, imgsz=S, ...)` with epoch callback
-4. Deploy `best.pt` → `weights/{project_id}_deploy.pt` and hot-reload
+Threading pattern in `services/trainer.py` (same shape as mlharum `trainer.py`, extended):
+1. `start_training` takes a per-project `threading.Lock` so one project can't run two jobs at once (different projects train concurrently); validates a minimum of `MIN_BOXES = 10` labeled boxes and that the requested base model file exists in `weights/`.
+2. Builds an 80/20 train/val split under `storage/projects/{id}/dataset/` with a `data.yaml` (multi-class: `nc` = project class count, `names` = ordered class name list).
+3. `YOLO(base_model).train(data=yaml, epochs=N, imgsz=S, batch=8, ...)` in a daemon thread, with an `on_train_epoch_end` callback updating `training_status.json` (`epochs_done`) for polling.
+4. On success: copies `best.pt` → `storage/projects/{id}/weights/best.pt` (previous deploy kept as `best_prev.pt`), records final metrics (`map50`, `map50_95`, `precision`, `recall`) into `training_status.json` **and** a `TrainedModel` DB row (used by the `/models` catalog), then generates a PDF report (`services/report.py`, ReportLab) at `storage/projects/{id}/report.pdf`. Report/DB-write failures are swallowed so they can never crash the training thread.
+5. On failure: status is set to `failed` with the exception message; a report is still generated reflecting the failure.
 
 Training config comes from the trigger request body (not hardcoded). Defaults: `epochs=100`, `imgsz=640`.
+
+### Remote Access (bbox-relay + bbox-agent)
+
+Lets a `bbox-web` client reach a `bbox-api` running on someone's desktop (e.g. behind NAT, no public IP) without exposing it directly:
+
+1. `bbox-agent` runs next to a local `bbox-api`, logs into it with normal bboxAI credentials (stores the resulting JWT, refreshed ~6 days before its 7-day expiry).
+2. On first run it registers with `bbox-relay` (`POST /agent/register`) to get a `device_id`/`device_secret` and prints a short pairing code (10-minute expiry).
+3. The web user enters that pairing code in `PairPage.tsx`; `bbox-relay` exchanges it (`POST /pair`) for a relay session token tied to the `device_id`.
+4. `bbox-agent` holds a persistent WebSocket (`/agent/ws`) to `bbox-relay`. Any HTTP request to `bbox-relay`'s catch-all proxy route (authenticated with the relay session token) is serialized (method/path/headers/base64 body), sent down that socket, executed locally against `bbox-api` by the agent, and the response is shipped back the same way (`bbox-relay/tunnel.py` correlates requests via `req_id` futures).
+5. Reconnects with backoff (`2,4,8,16,30s`) if the tunnel drops; the relay marks the device offline and fails in-flight requests immediately (`DeviceOffline`) rather than hanging.
+
+This is independent of bboxAI's own auth — it's strictly about proxying to a desktop instance.
 
 ### Flutter Packages
 
@@ -114,14 +200,25 @@ image_picker: ^1.1.2         # gallery support
 dio: ^5.4.3
 shared_preferences: ^2.2.3
 provider: ^6.1.2             # state management (project/class state across screens)
+url_launcher: ^6.3.0
 ```
 
 Unlike mlharum-collector (pure StatefulWidget), bboxAI uses `provider` because project + class selection must survive navigation across screens.
 
+### Web Packages (bbox-web)
+
+```json
+react, react-dom, react-router-dom, axios, recharts
+```
+
+`recharts` backs `MetricsChart.tsx` (per-epoch training curves from `/projects/{id}/train/metrics`). `AuthContext.tsx` + `ProtectedRoute.tsx` mirror the mobile app's login-gated navigation.
+
 ### Key Implementation Notes
 
-- **Class picker in annotation**: tapping a drawn box shows a bottom sheet with the project's class list; selected class shown as coloured label badge on the box.
-- **Minimum box size**: 4% of image dimensions (same as mlharum-collector) to filter tap accidents.
-- **Project classes are immutable in order** — new classes only append. The API must reject any upload whose `class_id` values exceed the project's current class count.
-- **Training lock per project**: each project tracks its own `training_status.json`; two projects can train concurrently but one project cannot run two jobs simultaneously.
-- **Gallery images**: decoded and displayed identically to camera captures — `AnnotationScreen` receives a file path regardless of source.
+- **Class picker in annotation**: tapping a drawn box shows a bottom sheet (Flutter) / `ClassPicker` (web) with the project's class list; selected class shown as coloured label badge on the box.
+- **Minimum box size**: 4% of image dimensions (same as mlharum-collector) to filter tap accidents — enforced client-side.
+- **Project classes are immutable in order** — new classes only append (`PATCH /projects/{id}/classes`). The API rejects any upload whose `class_id` values exceed the project's current class count.
+- **Training lock per project**: each project tracks its own `training_status.json`; two projects can train concurrently but one project cannot run two jobs simultaneously (`services/trainer._get_lock`).
+- **Gallery/video images are decoded and displayed identically to camera captures** — the annotation UI receives a file path or fetched frame regardless of source.
+- **`bbox-api` ownership boundary**: nearly every project-scoped endpoint calls `_require_owner`; the only owner-agnostic reads are `GET /projects/{id}` and the `/models` catalog, both gated by `is_public`.
+- **Path-traversal guards**: video `batch_id`/`frame_id` and relay proxy paths are validated against `/` and `..` before touching the filesystem.
