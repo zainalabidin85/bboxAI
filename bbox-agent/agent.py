@@ -94,7 +94,10 @@ async def register_with_relay(cfg: dict) -> None:
 
 
 async def handle_tunnel_request(cfg: dict, message: dict) -> dict:
-    headers = {k: v for k, v in message.get("headers", {}).items() if k.lower() not in HOP_BY_HOP}
+    headers = {
+        k: v for k, v in message.get("headers", {}).items()
+        if k.lower() not in HOP_BY_HOP and k.lower() != "authorization"
+    }
     headers["Authorization"] = f"Bearer {cfg['desktop_token']}"
     body = base64.b64decode(message.get("body_b64", ""))
 
