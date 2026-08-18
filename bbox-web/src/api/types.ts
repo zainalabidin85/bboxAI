@@ -53,6 +53,12 @@ export interface PendingFrame {
   index: number;
 }
 
+export interface PendingBatch {
+  batch_id: string;
+  frame_count: number;
+  frames: PendingFrame[];
+}
+
 export interface VideoUploadResult {
   batch_id: string;
   frame_count: number;

@@ -50,6 +50,31 @@ def extract_frames(project_id: str, video_path: str, target_fps: float) -> dict:
         cap.release()
 
 
+def list_batches(project_id: str) -> list[dict]:
+    """List pending video batches still on disk, with their remaining (not yet
+    committed/skipped) frames. Lets any session discover and resume a batch,
+    not just the tab that originally uploaded the video."""
+    root = pending_dir(project_id)
+    if not os.path.isdir(root):
+        return []
+
+    batches = []
+    for batch_id in sorted(os.listdir(root)):
+        batch_dir = os.path.join(root, batch_id)
+        if not os.path.isdir(batch_dir):
+            continue
+        frame_files = sorted(f for f in os.listdir(batch_dir) if f.endswith(".jpg"))
+        if not frame_files:
+            os.rmdir(batch_dir)
+            continue
+        frames = [
+            {"frame_id": os.path.splitext(f)[0], "index": i}
+            for i, f in enumerate(frame_files)
+        ]
+        batches.append({"batch_id": batch_id, "frame_count": len(frames), "frames": frames})
+    return batches
+
+
 def frame_path(project_id: str, batch_id: str, frame_id: str) -> str:
     if "/" in frame_id or ".." in frame_id or "/" in batch_id or ".." in batch_id:
         raise ValueError("Invalid frame or batch id.")

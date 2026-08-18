@@ -2,6 +2,7 @@ import axios from "axios";
 import type {
   Annotation,
   EpochMetric,
+  PendingBatch,
   PendingFrame,
   Project,
   Stats,
@@ -160,6 +161,15 @@ export async function uploadVideo(
     headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
+}
+
+export async function getPendingBatches(projectId: string): Promise<PendingBatch[]> {
+  const { data } = await client.get(`/projects/${projectId}/videos`);
+  return data;
+}
+
+export async function deleteBatch(projectId: string, batchId: string) {
+  await client.delete(`/projects/${projectId}/videos/${batchId}`);
 }
 
 export function pendingFrameImageUrl(

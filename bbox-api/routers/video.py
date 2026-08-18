@@ -60,6 +60,16 @@ async def upload_video(
     return result
 
 
+@router.get("/{project_id}/videos")
+def list_pending_batches(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _owned_project(project_id, db, current_user)
+    return video_svc.list_batches(project_id)
+
+
 @router.get("/{project_id}/videos/{batch_id}/{frame_id}/image")
 def get_pending_frame(
     project_id: str,
