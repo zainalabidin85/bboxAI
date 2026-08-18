@@ -12,6 +12,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [shake, setShake] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -22,6 +23,8 @@ export function LoginPage() {
       navigate("/projects");
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Login failed.");
+      setShake(false);
+      requestAnimationFrame(() => setShake(true));
     } finally {
       setLoading(false);
     }
@@ -36,7 +39,11 @@ export function LoginPage() {
           </span>
           bboxAI
         </div>
-        <form className="card" onSubmit={onSubmit}>
+        <form
+          className={`card${shake ? " shake" : ""}`}
+          onSubmit={onSubmit}
+          onAnimationEnd={() => setShake(false)}
+        >
           <h3>Sign in to your account</h3>
           <label>
             Username

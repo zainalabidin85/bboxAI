@@ -11,12 +11,19 @@ export function RegisterPage() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  function fail(message: string) {
+    setError(message);
+    setShake(false);
+    requestAnimationFrame(() => setShake(true));
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      fail("Passwords do not match.");
       return;
     }
     setLoading(true);
@@ -24,7 +31,7 @@ export function RegisterPage() {
       await api.register(username, email, password);
       navigate("/login");
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? "Registration failed.");
+      fail(err?.response?.data?.detail ?? "Registration failed.");
     } finally {
       setLoading(false);
     }
@@ -39,7 +46,11 @@ export function RegisterPage() {
           </span>
           bboxAI
         </div>
-        <form className="card" onSubmit={onSubmit}>
+        <form
+          className={`card${shake ? " shake" : ""}`}
+          onSubmit={onSubmit}
+          onAnimationEnd={() => setShake(false)}
+        >
           <h3>Create your account</h3>
           <label>
             Username
