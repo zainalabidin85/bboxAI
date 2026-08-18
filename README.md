@@ -9,9 +9,10 @@ A multi-class image/video annotation and YOLOv8 training system. Define your own
 | `bbox-api/` | FastAPI backend — auth, projects, annotation storage, training, reporting. The source of truth. |
 | `bbox-web/` | React + TypeScript + Vite web client (login, projects, annotate, train). |
 | `bbox-app/` | Flutter mobile app (Android). |
-| `bbox-agent/` | Desktop agent that pairs a local `bbox-api` with `bbox-relay` for remote access. |
-| `bbox-relay/` | Relay/tunnel server that lets a browser reach a `bbox-api` running on someone's desktop behind NAT. |
+| `bbox-agent/` | Desktop agent that pairs a local `bbox-api` with the hosted relay for remote access. |
 | `bboxai-desktop/` | Install scripts that set up `bbox-api` + `bbox-web` + `bbox-agent` as a local install with systemd services. |
+
+`bbox-relay` (the relay/tunnel server that lets a browser reach a `bbox-api` running on someone's desktop behind NAT) is a separately maintained, privately hosted service — `bbox-agent` is the public client for it, so you don't need its source to run bboxAI yourself.
 
 ## Quickstart: install bboxai-desktop
 
@@ -27,7 +28,7 @@ This provisions Postgres, sets up `bbox-api` as a systemd service (`127.0.0.1:80
 ./bboxai-desktop/enable-remote.sh
 ```
 
-This sets up `bbox-agent` as a systemd service, tunneling to a shared `bbox-relay` so you can log into a paired "remote" web build with the same account from anywhere.
+This sets up `bbox-agent` as a systemd service, tunneling to the hosted relay so you can log into a "remote" web build with the same account from anywhere.
 
 ## Development
 
@@ -52,16 +53,7 @@ cp .env.example .env
 npm run dev
 ```
 
-### `bbox-relay` (optional, for remote/tunneled access)
-
-```bash
-cd bbox-relay
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn main:app --host 0.0.0.0 --port 8001 --reload
-```
-
-### `bbox-agent` (optional, pairs a local `bbox-api` with `bbox-relay`)
+### `bbox-agent` (optional, pairs a local `bbox-api` with the hosted relay)
 
 ```bash
 cd bbox-agent
@@ -79,4 +71,4 @@ flutter run
 
 ## Architecture
 
-See [`CLAUDE.md`](./CLAUDE.md) for the full architecture writeup — auth model, project/class data model, video ingestion, training pipeline, and the remote-access (`bbox-relay` + `bbox-agent`) design.
+See [`CLAUDE.md`](./CLAUDE.md) for the full architecture writeup — auth model, project/class data model, video ingestion, training pipeline, and the remote-access (`bbox-agent` + hosted relay) design.

@@ -6,12 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **bboxAI** is a generic multi-class image/video annotation and YOLOv8 model training system. It is a flexible evolution of the `mlharum-collector` from the MLharum project — domain-agnostic, multi-class, multi-project, multi-user.
 
-Five components:
+Four components in this repo, plus one private companion service:
 - **`bbox-app/`** — Flutter mobile app (Android-first)
 - **`bbox-web/`** — React + TypeScript + Vite web client (login, projects, annotate, train, pairing)
 - **`bbox-api/`** — FastAPI backend (Python) — the source of truth: auth, projects, annotation storage, training, reporting
-- **`bbox-relay/`** — FastAPI relay/tunnel server that lets `bbox-web` reach a `bbox-api` instance running on someone's desktop behind NAT
 - **`bbox-agent/`** — Python desktop agent that pairs with `bbox-relay` and forwards proxied requests to a local `bbox-api`
+- **`bbox-relay`** — FastAPI relay/tunnel server that lets `bbox-web` reach a `bbox-api` instance running on someone's desktop behind NAT. Lives in a **separate private repo** (`zainalabidin85/bbox-relay`, split out 2026-08-18 ahead of monetizing the hosted relay) — not checked out here. `bbox-agent` is its public client, so the protocol it speaks is documented below even though the relay's own source isn't in this checkout.
 
 Reference implementation (single-class, single-project baseline): `/home/zainal/innovation/MLharum/mlharum-collector/`
 
@@ -37,15 +37,6 @@ pip install -r requirements.txt
 cp .env.example .env
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 # Swagger UI: http://localhost:8000/docs
-```
-
-### Relay (bbox-relay) — optional, for remote/tunneled access
-
-```bash
-cd bbox-relay
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 ### Desktop agent (bbox-agent) — optional, pairs a local bbox-api with bbox-relay
@@ -167,7 +158,7 @@ Frame/batch ids are validated against path traversal (`frame_path` rejects `/` a
 | `GET` | `/models` | Public catalog — all public projects with a completed trained model |
 | `GET` | `/models/search?classes=a,b` | Search public catalog by class name |
 
-`bbox-relay` exposes its own small surface: `POST /agent/register`, `POST /pair`, `WS /agent/ws` (desktop agent tunnel), and a catch-all `/{full_path}` proxy that forwards any method to the paired desktop's `bbox-api` using a relay session bearer token.
+`bbox-relay` exposes its own small surface: `POST /agent/register`, `POST /login`, `WS /agent/ws` (desktop agent tunnel), and a catch-all `/{full_path}` proxy that forwards any method to the paired desktop's `bbox-api` using a relay session bearer token.
 
 ### Training Pipeline
 
