@@ -51,6 +51,11 @@ if ! command -v nginx >/dev/null 2>&1; then
   sudo apt-get install -y -qq nginx >/dev/null
 fi
 
+if ! grep -qE '(^|[[:space:]])bboxai([[:space:]]|$)' /etc/hosts; then
+  echo "==> Adding 'bboxai' hostname to /etc/hosts (resolves to this machine)"
+  echo "127.0.0.1 bboxai" | sudo tee -a /etc/hosts >/dev/null
+fi
+
 echo "==> Provisioning Postgres role/db"
 # run from /tmp -- sudo -u postgres can't chdir into a private $HOME subdirectory
 cd /tmp
@@ -108,7 +113,7 @@ WEIGHTS_PATH=./weights
 DATABASE_URL=postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME
 SECRET_KEY=$(openssl rand -hex 32)
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
-CORS_ORIGINS=http://localhost:$WEB_PORT
+CORS_ORIGINS=http://localhost:$WEB_PORT,http://bboxai:$WEB_PORT
 EOF
 else
   echo "==> bbox-api/.env already exists, leaving it as-is"
@@ -185,7 +190,7 @@ sudo systemctl reload nginx
 echo
 echo "================================================================"
 echo " bboxai-desktop installed."
-echo " Local UI:  http://localhost:$WEB_PORT"
+echo " Local UI:  http://bboxai:$WEB_PORT  (or http://localhost:$WEB_PORT)"
 echo " API:       http://localhost:$API_PORT (docs at /docs)"
 echo
 echo " Next: open the UI above and register an account, then run"

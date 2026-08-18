@@ -4,7 +4,7 @@
 # https://bboxai-remote.unitani.com can reach this machine.
 #
 # Run this AFTER ./install.sh and AFTER registering a bboxAI account through
-# the local web UI (http://localhost:8080).
+# the local web UI (http://bboxai:8080).
 
 set -euo pipefail
 
@@ -36,7 +36,7 @@ STATUS=$(curl -s -o "$LOGIN_TMP" -w '%{http_code}' -X POST "$API_BASE/auth/login
   --data-urlencode "username=$USERNAME" \
   --data-urlencode "password=$PASSWORD")
 if [ "$STATUS" != "200" ]; then
-  echo "Login failed (HTTP $STATUS). Register an account at http://localhost:8080 first, or check your bbox-api install." >&2
+  echo "Login failed (HTTP $STATUS). Register an account at http://bboxai:8080 first, or check your bbox-api install." >&2
   exit 1
 fi
 echo "    login OK"
