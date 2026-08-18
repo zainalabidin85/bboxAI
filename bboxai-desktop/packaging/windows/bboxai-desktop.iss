@@ -27,10 +27,12 @@ ArchitecturesInstallIn64BitMode=x64compatible
 
 [Files]
 Source: "stage\bbox-api\*"; DestDir: "{app}\bbox-api"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "stage\bbox-agent\*"; DestDir: "{app}\bbox-agent"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "stage\bbox-web-dist\*"; DestDir: "{app}\bbox-web-dist"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "stage\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "enable-remote.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\bboxAI Desktop"; Filename: "http://bboxai:8080"

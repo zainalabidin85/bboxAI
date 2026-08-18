@@ -9,10 +9,12 @@ $ErrorActionPreference = "Continue"
 
 $NssmExe = Join-Path $AppDir "nssm.exe"
 
-Write-Host "==> Stopping and removing bboxai-api service"
+Write-Host "==> Stopping and removing bboxai-api / bboxai-agent services"
 if (Test-Path $NssmExe) {
     & $NssmExe stop bboxai-api 2>$null | Out-Null
     & $NssmExe remove bboxai-api confirm 2>$null | Out-Null
+    & $NssmExe stop bboxai-agent 2>$null | Out-Null
+    & $NssmExe remove bboxai-agent confirm 2>$null | Out-Null
 }
 
 # install.ps1's .env, and Python's own __pycache__/*.pyc bytecode cache
@@ -22,7 +24,7 @@ if (Test-Path $NssmExe) {
 # genuinely non-empty, won't remove the directories containing them either).
 # Delete both explicitly so the tree ends up empty and gets cleaned up.
 Remove-Item -Force (Join-Path $AppDir "bbox-api\.env") -ErrorAction SilentlyContinue
-Get-ChildItem -Path (Join-Path $AppDir "bbox-api") -Filter "__pycache__" -Recurse -Directory -ErrorAction SilentlyContinue |
+Get-ChildItem -Path $AppDir -Filter "__pycache__" -Recurse -Directory -ErrorAction SilentlyContinue |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "==> Removing 'bboxai' hostname from the hosts file"

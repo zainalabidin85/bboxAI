@@ -23,10 +23,11 @@ Pop-Location
 
 Write-Host "==> Staging files"
 Remove-Item -Recurse -Force $StageDir -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path "$StageDir\bbox-api", "$StageDir\bbox-web-dist" | Out-Null
+New-Item -ItemType Directory -Force -Path "$StageDir\bbox-api", "$StageDir\bbox-agent", "$StageDir\bbox-web-dist" | Out-Null
 
 $excludeDirs = @("venv", "__pycache__", "storage", "weights")
 robocopy (Join-Path $SourceDir "bbox-api") "$StageDir\bbox-api" /E /XD $excludeDirs /XF ".env" "*.pyc" | Out-Null
+robocopy (Join-Path $SourceDir "bbox-agent") "$StageDir\bbox-agent" /E /XD "venv" "__pycache__" /XF "*.pyc" | Out-Null
 robocopy (Join-Path $SourceDir "bbox-web\dist") "$StageDir\bbox-web-dist" /E | Out-Null
 
 Write-Host "==> Fetching nssm.exe"
