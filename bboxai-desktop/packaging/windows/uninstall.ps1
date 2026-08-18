@@ -1,0 +1,37 @@
+# bboxai-desktop uninstall cleanup, run by the Inno Setup uninstaller
+# (elevated). $Purge = also delete the database/storage/weights.
+param(
+    [Parameter(Mandatory = $true)][string]$AppDir,
+    [Parameter(Mandatory = $true)][string]$DataDir,
+    [switch]$Purge
+)
+$ErrorActionPreference = "Continue"
+
+$NssmExe = Join-Path $AppDir "nssm.exe"
+
+Write-Host "==> Stopping and removing bboxai-api service"
+if (Test-Path $NssmExe) {
+    & $NssmExe stop bboxai-api 2>$null | Out-Null
+    & $NssmExe remove bboxai-api confirm 2>$null | Out-Null
+}
+
+# install.ps1's .env, and Python's own __pycache__/*.pyc bytecode cache
+# written the first time the service imports each module, both get created
+# at runtime under {app}\bbox-api -- neither is part of Inno Setup's file
+# manifest, so its built-in cleanup won't remove them (and, since they're
+# genuinely non-empty, won't remove the directories containing them either).
+# Delete both explicitly so the tree ends up empty and gets cleaned up.
+Remove-Item -Force (Join-Path $AppDir "bbox-api\.env") -ErrorAction SilentlyContinue
+Get-ChildItem -Path (Join-Path $AppDir "bbox-api") -Filter "__pycache__" -Recurse -Directory -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+Write-Host "==> Removing 'bboxai' hostname from the hosts file"
+$HostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+if (Test-Path $HostsPath) {
+    (Get-Content $HostsPath) | Where-Object { $_ -notmatch '^127\.0\.0\.1\s+bboxai\s*$' } | Set-Content $HostsPath
+}
+
+if ($Purge) {
+    Write-Host "==> Purging bboxai-desktop data (database, storage, weights)"
+    Remove-Item -Recurse -Force $DataDir -ErrorAction SilentlyContinue
+}
