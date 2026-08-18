@@ -679,6 +679,21 @@ input[type="range"] {
   40%, 60% { transform: translateX(4px); }
 }
 
+@keyframes shake-flash {
+  0%, 100% { border-color: var(--color-border); }
+  50% { border-color: var(--color-danger); }
+}
+
+/* prefers-reduced-motion (see top of file) forces all animation-durations
+   near-zero via a `*` selector -- override back to a motion-free color
+   pulse here, using higher specificity to win the cascade instead of
+   silently losing the feedback cue entirely. */
+@media (prefers-reduced-motion: reduce) {
+  .shake {
+    animation: shake-flash 500ms ease-out !important;
+  }
+}
+
 .class-list {
   display: flex;
   flex-direction: column;
