@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+
+systemctl stop bboxai-api.service 2>/dev/null || true
+systemctl disable bboxai-api.service 2>/dev/null || true
+
+exit 0

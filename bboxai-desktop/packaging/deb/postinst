@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# bboxai-desktop postinst — provisions runtime state on top of the package's
+# already-installed, read-only /opt/bboxai-desktop tree. Idempotent: safe to
+# re-run on upgrade (dpkg reruns postinst "configure" on every install).
+set -euo pipefail
+
+APP_DIR=/opt/bboxai-desktop
+DATA_DIR=/var/lib/bboxai-desktop
+WEB_ROOT=/var/www/bboxai-desktop
+SVC_USER=bboxai
+WEB_PORT=8080
+API_PORT=8000
+DB_NAME=bboxai
+DB_USER=bboxai
+DB_PASS_FILE="$DATA_DIR/.db_password"
+
+echo "==> Creating system user '$SVC_USER'"
+mkdir -p "$DATA_DIR"
+if ! id "$SVC_USER" >/dev/null 2>&1; then
+  adduser --system --group --home "$DATA_DIR" --no-create-home "$SVC_USER"
+fi
+chown "$SVC_USER:$SVC_USER" "$DATA_DIR"
+
+echo "==> Ensuring Postgres is running"
+systemctl enable --now postgresql
+
+echo "==> Provisioning Postgres role/db"
+cd /tmp  # sudo -u postgres can't chdir into a private home dir
+ROLE_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'")
+if [ "$ROLE_EXISTS" = "1" ] && [ -f "$DB_PASS_FILE" ]; then
+  DB_PASS="$(cat "$DB_PASS_FILE")"
+  echo "    role '$DB_USER' already exists, reusing saved password"
+else
+  DB_PASS="$(openssl rand -hex 16)"
+  if [ "$ROLE_EXISTS" = "1" ]; then
+    sudo -u postgres psql -c "ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS';" >/dev/null
+  else
+    sudo -u postgres psql -c "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS';" >/dev/null
+  fi
+  echo "$DB_PASS" > "$DB_PASS_FILE"
+  chmod 600 "$DB_PASS_FILE"
+  chown "$SVC_USER:$SVC_USER" "$DB_PASS_FILE"
+fi
+DB_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'")
+if [ "$DB_EXISTS" != "1" ]; then
+  sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+fi
+
+echo "==> Setting up bbox-api venv"
+if [ ! -d "$DATA_DIR/venv" ]; then
+  python3 -m venv "$DATA_DIR/venv"
+fi
+# shellcheck disable=SC1091
+source "$DATA_DIR/venv/bin/activate"
+pip install --upgrade pip -q
+if command -v nvidia-smi >/dev/null 2>&1 && [ "$(uname -m)" = "x86_64" ]; then
+  echo "    NVIDIA GPU detected (x86_64) -- pinning CUDA 12.4 torch build"
+  pip install -q torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+  printf 'torch==2.6.0+cu124\n' > "$DATA_DIR/constraints.txt"
+  pip install -q -r "$APP_DIR/bbox-api/requirements.txt" -c "$DATA_DIR/constraints.txt"
+else
+  echo "    No NVIDIA GPU detected (or non-x86_64 arch) -- installing default (CPU) torch"
+  pip install -q -r "$APP_DIR/bbox-api/requirements.txt"
+fi
+deactivate
+chown -R "$SVC_USER:$SVC_USER" "$DATA_DIR/venv"
+
+mkdir -p "$DATA_DIR/storage" "$DATA_DIR/weights"
+chown -R "$SVC_USER:$SVC_USER" "$DATA_DIR/storage" "$DATA_DIR/weights"
+
+if [ ! -f "$DATA_DIR/bbox-api.env" ]; then
+  echo "==> Writing $DATA_DIR/bbox-api.env"
+  cat > "$DATA_DIR/bbox-api.env" <<EOF
+STORAGE_PATH=$DATA_DIR/storage
+WEIGHTS_PATH=$DATA_DIR/weights
+DATABASE_URL=postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME
+SECRET_KEY=$(openssl rand -hex 32)
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+CORS_ORIGINS=http://localhost:$WEB_PORT,http://bboxai:$WEB_PORT
+EOF
+  chmod 600 "$DATA_DIR/bbox-api.env"
+  chown "$SVC_USER:$SVC_USER" "$DATA_DIR/bbox-api.env"
+else
+  echo "==> $DATA_DIR/bbox-api.env already exists, leaving it as-is"
+fi
+
+echo "==> Fetching default base model weight"
+if [ ! -f "$DATA_DIR/weights/yolo11n.pt" ]; then
+  curl -sL -o "$DATA_DIR/weights/yolo11n.pt" \
+    https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+  if ! file "$DATA_DIR/weights/yolo11n.pt" | grep -q data; then
+    echo "WARNING: yolo11n.pt download failed -- training won't work until a valid" >&2
+    echo "  weight is placed in $DATA_DIR/weights/" >&2
+    rm -f "$DATA_DIR/weights/yolo11n.pt"
+  fi
+  chown "$SVC_USER:$SVC_USER" "$DATA_DIR/weights/yolo11n.pt" 2>/dev/null || true
+fi
+
+echo "==> Installing bboxai-api.service"
+cp "$APP_DIR/packaging/bboxai-api.service" /etc/systemd/system/bboxai-api.service
+systemctl daemon-reload
+systemctl enable --now bboxai-api.service
+systemctl restart bboxai-api.service
+
+echo "==> Configuring nginx"
+cp "$APP_DIR/packaging/bboxai-desktop.nginx.conf" /etc/nginx/sites-available/bboxai-desktop.conf
+ln -sf /etc/nginx/sites-available/bboxai-desktop.conf /etc/nginx/sites-enabled/bboxai-desktop.conf
+mkdir -p "$WEB_ROOT"
+cp -r "$APP_DIR/bbox-web-dist/." "$WEB_ROOT/"
+chown -R www-data:www-data "$WEB_ROOT"
+nginx -t
+systemctl enable --now nginx
+systemctl reload nginx
+
+if ! grep -qE '(^|[[:space:]])bboxai([[:space:]]|$)' /etc/hosts; then
+  echo "==> Adding 'bboxai' hostname to /etc/hosts (resolves to this machine)"
+  echo "127.0.0.1 bboxai" >> /etc/hosts
+fi
+
+echo
+echo "================================================================"
+echo " bboxai-desktop installed."
+echo " Local UI:  http://bboxai:$WEB_PORT  (or http://localhost:$WEB_PORT)"
+echo " API:       http://localhost:$API_PORT (docs at /docs)"
+echo
+echo " Next: open the UI above and register an account, then run"
+echo "   sudo bboxai-enable-remote"
+echo " to enable away-from-home access."
+echo "================================================================"
+
+exit 0

@@ -1,0 +1,16 @@
+[Unit]
+Description=bboxAI desktop agent (remote tunnel)
+After=network.target bboxai-api.service
+
+[Service]
+Type=simple
+User=bboxai
+Group=bboxai
+WorkingDirectory=/opt/bboxai-desktop/bbox-agent
+EnvironmentFile=/etc/bboxai-agent.env
+ExecStart=/var/lib/bboxai-desktop/agent-venv/bin/python agent.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

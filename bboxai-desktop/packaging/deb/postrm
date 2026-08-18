@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -e
+
+rm -f /etc/systemd/system/bboxai-api.service
+systemctl daemon-reload 2>/dev/null || true
+
+rm -f /etc/nginx/sites-enabled/bboxai-desktop.conf /etc/nginx/sites-available/bboxai-desktop.conf
+systemctl reload nginx 2>/dev/null || true
+
+if [ "$1" = "purge" ]; then
+  echo "==> Purging bboxai-desktop data (database, storage, weights)"
+  DB_NAME=bboxai
+  DB_USER=bboxai
+  cd /tmp
+  sudo -u postgres psql -c "DROP DATABASE IF EXISTS $DB_NAME;" >/dev/null 2>&1 || true
+  sudo -u postgres psql -c "DROP ROLE IF EXISTS $DB_USER;" >/dev/null 2>&1 || true
+  rm -rf /var/lib/bboxai-desktop
+  rm -rf /var/www/bboxai-desktop
+  deluser --system bboxai >/dev/null 2>&1 || true
+  # grep-and-rewrite-in-place instead of `sed -i` (which renames a temp file
+  # over /etc/hosts -- fails with EBUSY when /etc/hosts is a bind mount, e.g.
+  # inside a container) so removal works in more environments.
+  if grep -qE '^127\.0\.0\.1[[:space:]]+bboxai$' /etc/hosts 2>/dev/null; then
+    grep -vE '^127\.0\.0\.1[[:space:]]+bboxai$' /etc/hosts > /etc/hosts.bboxai-tmp \
+      && cat /etc/hosts.bboxai-tmp > /etc/hosts \
+      && rm -f /etc/hosts.bboxai-tmp
+  fi
+fi
+
+exit 0
