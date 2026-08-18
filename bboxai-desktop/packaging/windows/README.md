@@ -34,7 +34,8 @@ Linux install still uses Postgres + nginx exactly as before.
 | `build.ps1` | Run on Windows. Pre-builds `bbox-web`, downloads `nssm.exe`, stages everything, and invokes Inno Setup (`ISCC.exe`) to produce the `.exe`. |
 | `bboxai-desktop.iss` | The Inno Setup script — what gets installed where, and which scripts run on install/uninstall. |
 | `install.ps1` | Runs elevated, once, right after Inno Setup copies files. Sets up Python/venv/dependencies, SQLite `.env`, the default YOLO weight, the NSSM service, and the hosts entry. Idempotent — safe to re-run (e.g. on a version upgrade). |
-| `uninstall.ps1` | Runs elevated during uninstall. Stops/removes the service, removes the hosts entry, and cleans up files `install.ps1` created at runtime that Inno Setup's own manifest doesn't know about (see "Known limitation" below). Data is **preserved** unless `-Purge` is passed. |
+| `enable-remote.ps1` | **Not run automatically** — the user runs this manually (elevated) after registering an account, same pattern as the `.deb`'s `bboxai-enable-remote`. Validates the login against the local `bbox-api`, sets up a `bbox-agent` venv, and registers/starts a `bboxai-agent` service (via NSSM) tunneling to the shared `bbox-relay`, enabling `https://bboxai-remote.unitani.com` access for that account. |
+| `uninstall.ps1` | Runs elevated during uninstall. Stops/removes both services (`bboxai-api` and, if present, `bboxai-agent`), removes the hosts entry, and cleans up files `install.ps1`/`enable-remote.ps1` created at runtime that Inno Setup's own manifest doesn't know about (see "Known limitation" below). Data is **preserved** unless `-Purge` is passed. |
 
 ## Building it yourself
 
@@ -78,6 +79,25 @@ On first run it will, in order:
 
 Takes a few minutes (mostly step 2 — `torch`/`opencv`/`ultralytics` aren't
 small) and needs internet access throughout. When it's done: **`http://bboxai:8080`**.
+
+### Enabling remote access (away from home)
+
+The installer only sets up the local `bbox-api`/`bbox-web` pair — it does
+**not** register a device with the shared relay, so a freshly-registered
+account can't yet log into `https://bboxai-remote.unitani.com`. After
+registering an account through `http://bboxai:8080`, run this once
+(elevated):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\Program Files\bboxai-desktop\enable-remote.ps1" -AppDir "C:\Program Files\bboxai-desktop" -DataDir "C:\ProgramData\bboxai-desktop"
+```
+
+It prompts for the bboxAI username/password (or reads `$env:BBOXAI_USERNAME`
+/ `$env:BBOXAI_PASSWORD` if already set), validates the login against the
+local `bbox-api`, and registers/starts a `bboxai-agent` service tunneling to
+the shared relay. Once it reports the tunnel connected, the same account
+works at `bboxai-remote.unitani.com` from anywhere. Logs go to
+`%ProgramData%\bboxai-desktop\agent.log`.
 
 ## Uninstalling
 
@@ -129,10 +149,26 @@ reading before re-deriving them:
   in favor of `x64compatible` — cosmetic (just a compiler warning), already
   fixed in `bboxai-desktop.iss`, noted here in case it resurfaces after an
   Inno Setup upgrade.
+- **The installer never registered a device with the relay at all** — the
+  original release only set up `bbox-api`/`bbox-web`, with no Windows
+  equivalent of `enable-remote.sh`/`bboxai-enable-remote`. A freshly
+  registered account worked fine locally but had no way to reach
+  `bboxai-remote.unitani.com`, since nothing ever told the relay which
+  device that username lived on. Fixed by bundling `bbox-agent` and adding
+  `enable-remote.ps1` (see "Enabling remote access" above).
+- **`bboxai-agent`'s log file stayed empty even while the service was
+  working correctly.** NSSM was launching it as plain `python agent.py`;
+  Python block-buffers stdout when it isn't attached to a terminal (which a
+  service's redirected-to-file stdout isn't), so `print()` output could sit
+  in the buffer indefinitely. Switched to `python -u agent.py`
+  (`enable-remote.ps1`'s `AppParameters`) for unbuffered output, so
+  `agent.log` actually reflects what's happening.
 
 All of the above were caught by actually installing, exercising (register/
-login round-trip over the running service), and uninstalling this on a real
-Windows 10 machine — not just reasoned about from the script text. If you
-change `install.ps1`/`uninstall.ps1`, re-test the same way rather than
+login round-trip over the running service, and for the agent — a real POST
+to `bboxai-relay.unitani.com/login` round-tripping through the tunnel to a
+live account), and uninstalling this on a real Windows 10 machine — not
+just reasoned about from the script text. If you change `install.ps1`/
+`enable-remote.ps1`/`uninstall.ps1`, re-test the same way rather than
 trusting a read-through; several of these bugs looked completely correct
 until they were actually run.
