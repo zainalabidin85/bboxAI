@@ -3,7 +3,8 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config import settings
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+_connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+engine = create_engine(settings.database_url, pool_pre_ping=True, connect_args=_connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
