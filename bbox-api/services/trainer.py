@@ -12,12 +12,28 @@ MIN_BOXES = 10
 _locks: dict[str, threading.Lock] = {}
 _locks_mutex = threading.Lock()
 
+_cancel_flags: set[str] = set()
+_cancel_mutex = threading.Lock()
+
 
 def _get_lock(project_id: str) -> threading.Lock:
     with _locks_mutex:
         if project_id not in _locks:
             _locks[project_id] = threading.Lock()
         return _locks[project_id]
+
+
+def _cancel_requested(project_id: str) -> bool:
+    with _cancel_mutex:
+        return project_id in _cancel_flags
+
+
+def request_cancel(project_id: str) -> dict:
+    if get_status(project_id)["state"] != "running":
+        return {"ok": False, "reason": "No training is currently running for this project."}
+    with _cancel_mutex:
+        _cancel_flags.add(project_id)
+    return {"ok": True, "reason": "Cancellation requested; training will stop after the current epoch."}
 
 
 def _proj(*parts: str) -> str:
@@ -144,6 +160,8 @@ def _run_training(project_id: str, status: dict, base_model: str, epochs: int, i
 
         def _on_epoch_end(trainer):
             status["epochs_done"] = trainer.epoch + 1
+            if _cancel_requested(project_id):
+                trainer.stop = True
             _write_status(project_id, status)
 
         runs_dir = _proj(project_id, "runs")
@@ -160,6 +178,14 @@ def _run_training(project_id: str, status: dict, base_model: str, epochs: int, i
             exist_ok=True,
             verbose=False,
         )
+
+        if _cancel_requested(project_id):
+            status.update({
+                "state": "cancelled",
+                "finished_at": datetime.utcnow().isoformat(),
+                "error": "Training was cancelled by the user.",
+            })
+            return
 
         best_pt = os.path.join(runs_dir, "train", "weights", "best.pt")
         if not os.path.exists(best_pt):
@@ -194,6 +220,8 @@ def _run_training(project_id: str, status: dict, base_model: str, epochs: int, i
         })
 
     finally:
+        with _cancel_mutex:
+            _cancel_flags.discard(project_id)
         _write_status(project_id, status)
         _generate_report(project_id, status)
         _record_trained_model(project_id, status)
@@ -281,6 +309,26 @@ def _generate_report(project_id: str, status: dict):
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
+def reconcile_stale_running() -> None:
+    """Mark any project stuck in state="running" as failed on process startup.
+
+    A "running" status can only be true for a training thread in *this*
+    process (threads don't survive a restart/crash), so any status file
+    still saying "running" after a fresh start is stale.
+    """
+    if not os.path.isdir(PROJECTS_DIR):
+        return
+    for project_id in os.listdir(PROJECTS_DIR):
+        status = get_status(project_id)
+        if status["state"] == "running":
+            status.update({
+                "state": "failed",
+                "finished_at": datetime.utcnow().isoformat(),
+                "error": "Training was interrupted (server restarted or crashed).",
+            })
+            _write_status(project_id, status)
+
 
 def list_base_models() -> list[dict]:
     if not os.path.isdir(WEIGHTS_DIR):

@@ -118,7 +118,13 @@ echo "==> Fetching default base model weight"
 mkdir -p weights
 if [ ! -f weights/yolo11n.pt ]; then
   curl -sL -o weights/yolo11n.pt \
-    https://github.com/ultralytics/assets/releases/download/v8.2.0/yolo11n.pt
+    https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+  if ! file weights/yolo11n.pt | grep -q data; then
+    echo "ERROR: yolo11n.pt download failed (unexpected file type)" >&2
+    cat weights/yolo11n.pt >&2
+    rm -f weights/yolo11n.pt
+    exit 1
+  fi
 fi
 
 echo "==> Installing bboxai-api.service"

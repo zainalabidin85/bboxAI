@@ -20,6 +20,8 @@ app.add_middleware(
 # Create all tables on startup (idempotent)
 Base.metadata.create_all(bind=engine)
 
+trainer.reconcile_stale_running()
+
 app.include_router(auth.router,     prefix="/auth",     tags=["auth"])
 app.include_router(projects.router, prefix="/projects", tags=["projects"])
 app.include_router(training.router, prefix="/projects", tags=["training"])

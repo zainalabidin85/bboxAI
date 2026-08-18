@@ -15,6 +15,6 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-PROJECTS_DIR = os.path.join(settings.storage_path, "projects")
+PROJECTS_DIR = os.path.abspath(os.path.join(settings.storage_path, "projects"))
 WEIGHTS_DIR = os.path.abspath(settings.weights_path)
 CORS_ORIGINS = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]

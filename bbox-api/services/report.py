@@ -6,8 +6,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import (
-    HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    HRFlowable, Image, KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
+from reportlab.lib.utils import ImageReader
 
 from config import PROJECTS_DIR
 
@@ -23,6 +24,28 @@ def _report_path(project_id: str) -> str:
     return os.path.join(PROJECTS_DIR, project_id, "report.pdf")
 
 
+def _run_dir(project_id: str) -> str:
+    return os.path.join(PROJECTS_DIR, project_id, "runs", "train")
+
+
+def _count_dir_images(path: str) -> int:
+    if not os.path.isdir(path):
+        return 0
+    return sum(1 for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)))
+
+
+def _fit_image(path: str, max_w: float, max_h: float) -> Image | None:
+    """Load an image scaled to fit within (max_w, max_h), preserving aspect ratio."""
+    if not os.path.exists(path):
+        return None
+    try:
+        iw, ih = ImageReader(path).getSize()
+    except Exception:
+        return None
+    scale = min(max_w / iw, max_h / ih)
+    return Image(path, width=iw * scale, height=ih * scale)
+
+
 def generate(project: dict, stats: dict, training_status: dict) -> str:
     """Generate a PDF training report. Returns the file path."""
     path = _report_path(project["id"])
@@ -30,15 +53,15 @@ def generate(project: dict, stats: dict, training_status: dict) -> str:
 
     title_style = ParagraphStyle(
         "Title", parent=styles["Normal"],
-        fontSize=22, textColor=_INDIGO, spaceAfter=4, fontName="Helvetica-Bold",
+        fontSize=22, leading=26, textColor=_INDIGO, spaceAfter=4, fontName="Helvetica-Bold",
     )
     subtitle_style = ParagraphStyle(
         "Subtitle", parent=styles["Normal"],
-        fontSize=11, textColor=_GREY, spaceAfter=16,
+        fontSize=11, leading=14, textColor=_GREY, spaceAfter=16,
     )
     section_style = ParagraphStyle(
         "Section", parent=styles["Normal"],
-        fontSize=13, textColor=_INDIGO, spaceBefore=18, spaceAfter=8,
+        fontSize=13, leading=16, textColor=_INDIGO, spaceBefore=18, spaceAfter=8,
         fontName="Helvetica-Bold",
     )
     body_style = ParagraphStyle(
@@ -131,6 +154,25 @@ def generate(project: dict, stats: dict, training_status: dict) -> str:
     story.append(summary_table)
     story.append(Spacer(1, 10))
 
+    # Train/val split actually used for this training run
+    train_n = _count_dir_images(os.path.join(PROJECTS_DIR, project["id"], "dataset", "train", "images"))
+    val_n   = _count_dir_images(os.path.join(PROJECTS_DIR, project["id"], "dataset", "val", "images"))
+    if train_n or val_n:
+        story.append(Paragraph("Train / validation split", body_style))
+        split_data = [["Training images", "Validation images"], [str(train_n), str(val_n)]]
+        split_table = Table(split_data, colWidths=[usable_w/2]*2)
+        split_table.setStyle(TableStyle([
+            ("BACKGROUND",     (0, 0), (-1, 0), _LIGHT),
+            ("FONTNAME",       (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME",       (0, 1), (-1, 1), "Helvetica-Bold"),
+            ("FONTSIZE",       (0, 0), (-1, -1), 10),
+            ("ALIGN",          (0, 0), (-1, -1), "CENTER"),
+            ("GRID",           (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+            ("PADDING",        (0, 0), (-1, -1), 6),
+        ]))
+        story.append(split_table)
+        story.append(Spacer(1, 10))
+
     # Per-class table
     if per_class:
         story.append(Paragraph("Boxes per class", body_style))
@@ -181,6 +223,32 @@ def generate(project: dict, stats: dict, training_status: dict) -> str:
             ("PADDING",        (0, 0), (-1, -1), 7),
         ]))
         story.append(metrics_table)
+
+        run_dir = _run_dir(project["id"])
+
+        # ── Training metrics chart ───────────────────────────────────────────
+        results_img = _fit_image(os.path.join(run_dir, "results.png"), usable_w, 9*cm)
+        if results_img:
+            story.append(KeepTogether([Paragraph("Training Curves", section_style), results_img]))
+
+        # ── Confusion matrix ──────────────────────────────────────────────────
+        cm_img = _fit_image(os.path.join(run_dir, "confusion_matrix.png"), usable_w, 12*cm)
+        if cm_img:
+            story.append(KeepTogether([Paragraph("Confusion Matrix", section_style), cm_img]))
+
+        # ── Validation samples: ground truth vs. predictions ───────────────────
+        labels_img = _fit_image(os.path.join(run_dir, "val_batch0_labels.jpg"), usable_w, 14*cm)
+        pred_img   = _fit_image(os.path.join(run_dir, "val_batch0_pred.jpg"),   usable_w, 14*cm)
+        if labels_img:
+            story.append(KeepTogether([
+                Paragraph("Validation Samples", section_style),
+                Paragraph("Ground truth", body_style),
+                labels_img,
+            ]))
+        if pred_img:
+            story.append(Spacer(1, 8))
+            story.append(KeepTogether([Paragraph("Model predictions", body_style), pred_img]))
+
     elif state == "failed":
         story.append(Paragraph(
             f"Training failed: {training_status.get('error', 'Unknown error')}",
