@@ -111,6 +111,11 @@ export async function startTraining(
   return data;
 }
 
+export async function cancelTraining(projectId: string) {
+  const { data } = await client.post(`/projects/${projectId}/train/cancel`);
+  return data;
+}
+
 export async function getTrainingStatus(projectId: string): Promise<TrainingStatus> {
   const { data } = await client.get(`/projects/${projectId}/train/status`);
   return data;

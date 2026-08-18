@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api/client";
 import type { Project } from "../api/types";
@@ -26,6 +26,16 @@ export function ProjectsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  async function onDelete(e: MouseEvent, id: string, name: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm(`Delete project "${name}"? This permanently removes all its images, labels, and trained models.`)) {
+      return;
+    }
+    await api.deleteProject(id);
+    await load();
+  }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -95,7 +105,16 @@ export function ProjectsPage() {
         <div className="card-grid">
           {projects.map((p) => (
             <Link className="card project-card" to={`/projects/${p.id}`} key={p.id}>
-              <h3>{p.name}</h3>
+              <div className="header-actions">
+                <h3>{p.name}</h3>
+                <button
+                  className="btn-secondary"
+                  onClick={(e) => onDelete(e, p.id, p.name)}
+                  title="Delete project"
+                >
+                  Delete
+                </button>
+              </div>
               <p className="muted">{p.classes.length} class(es)</p>
               <div className="chip-row">
                 {p.classes.slice(0, 5).map((c) => (

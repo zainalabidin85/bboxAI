@@ -71,6 +71,18 @@ export function TrainPage() {
     }
   }
 
+  async function onCancel() {
+    if (!id) return;
+    if (!window.confirm("Stop training? Progress so far will be discarded — no model will be deployed.")) return;
+    setError(null);
+    try {
+      await api.cancelTraining(id);
+      await poll();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Failed to cancel training.");
+    }
+  }
+
   const canTrain = (stats?.total_boxes ?? 0) >= 10 && status?.state !== "running";
 
   return (
@@ -136,12 +148,22 @@ export function TrainPage() {
           <p>
             Epoch {status.epochs_done} / {status.total_epochs} — base model: {status.base_model}
           </p>
+          {error && <p className="error">{error}</p>}
+          <button className="btn-secondary" onClick={onCancel}>
+            Stop training
+          </button>
         </div>
       )}
 
-      {status && (status.state === "done" || status.state === "failed") && (
+      {status && (status.state === "done" || status.state === "failed" || status.state === "cancelled") && (
         <div className="card">
-          <h3>{status.state === "done" ? "Training complete — model deployed!" : "Training failed"}</h3>
+          <h3>
+            {status.state === "done"
+              ? "Training complete — model deployed!"
+              : status.state === "cancelled"
+              ? "Training cancelled"
+              : "Training failed"}
+          </h3>
           {status.error && <p className="error">{status.error}</p>}
           {status.state === "done" && status.map50 != null && (
             <div className="metric-chip-row">

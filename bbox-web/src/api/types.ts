@@ -20,7 +20,7 @@ export interface Stats {
 }
 
 export interface TrainingStatus {
-  state: "idle" | "running" | "done" | "failed";
+  state: "idle" | "running" | "done" | "failed" | "cancelled";
   started_at: string | null;
   finished_at: string | null;
   total_images: number;

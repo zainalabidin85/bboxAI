@@ -151,6 +151,22 @@ def trigger_training(
     return {"message": result["reason"]}
 
 
+@router.post("/{project_id}/train/cancel")
+def cancel_training(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project_row = db.query(Project).filter(Project.id == project_id).first()
+    if not project_row:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    _require_owner(project_row, current_user)
+    result = trainer.request_cancel(project_id)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result["reason"])
+    return {"message": result["reason"]}
+
+
 @router.get("/{project_id}/train/status")
 def training_status(
     project_id: str,

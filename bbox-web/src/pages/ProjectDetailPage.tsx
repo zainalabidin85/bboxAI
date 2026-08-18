@@ -42,6 +42,15 @@ export function ProjectDetailPage() {
     }
   }
 
+  async function onDelete() {
+    if (!id || !project) return;
+    if (!window.confirm(`Delete project "${project.name}"? This permanently removes all its images, labels, and trained models.`)) {
+      return;
+    }
+    await api.deleteProject(id);
+    navigate("/projects");
+  }
+
   if (!project || !stats) return <p>Loading…</p>;
 
   return (
@@ -51,6 +60,9 @@ export function ProjectDetailPage() {
           ← Projects
         </Link>
         <h2>{project.name}</h2>
+        <button className="btn-secondary" onClick={onDelete}>
+          Delete project
+        </button>
       </header>
 
       <div className="chip-row">
