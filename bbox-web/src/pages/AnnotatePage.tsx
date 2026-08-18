@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AlertCircle, ChevronLeft, Check, Loader2, SkipForward } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { Annotation, PendingFrame, Project } from "../api/types";
@@ -50,8 +51,14 @@ export function AnnotatePage() {
   if (!id || !batchId || frames.length === 0) {
     return (
       <div className="page">
-        <p>No pending frames. Upload a video from the project page first.</p>
-        <Link to={`/projects/${id}`}>← Back to project</Link>
+        <div className="empty-state card">
+          <AlertCircle />
+          <p className="muted">No pending frames. Upload a video from the project page first.</p>
+          <Link to={`/projects/${id}`} className="back-link">
+            <ChevronLeft size={16} />
+            Back to project
+          </Link>
+        </div>
       </div>
     );
   }
@@ -94,12 +101,14 @@ export function AnnotatePage() {
 
   return (
     <div className="page">
+      <Link to={`/projects/${id}`} className="back-link">
+        <ChevronLeft size={16} />
+        Project
+      </Link>
+
       <header className="page-header">
-        <Link to={`/projects/${id}`} className="muted">
-          ← Project
-        </Link>
         <h2>
-          Annotate frame {index + 1} / {frames.length}
+          Annotate frame <span className="mono">{index + 1} / {frames.length}</span>
         </h2>
       </header>
 
@@ -111,16 +120,26 @@ export function AnnotatePage() {
           onBoxesChange={setBoxes}
         />
       ) : (
-        <p>Loading frame…</p>
+        <p className="muted" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Loader2 size={14} className="spin" />
+          Loading frame…
+        </p>
       )}
 
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error">
+          <AlertCircle />
+          {error}
+        </p>
+      )}
 
       <div className="annotate-actions">
         <button className="btn-secondary" onClick={onSkip} disabled={busy}>
+          <SkipForward size={16} />
           Skip frame
         </button>
         <button className="btn-primary" onClick={onCommit} disabled={busy || boxes.length === 0}>
+          <Check size={16} />
           {index + 1 < frames.length ? "Save & next" : "Save & finish"}
         </button>
       </div>

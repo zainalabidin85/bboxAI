@@ -1,4 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  AlertCircle,
+  Ban,
+  CheckCircle2,
+  ChevronLeft,
+  Download,
+  FileText,
+  Square,
+  XCircle,
+  Zap,
+} from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { EpochMetric, Stats, TrainingStatus } from "../api/types";
@@ -84,14 +95,20 @@ export function TrainPage() {
   }
 
   const canTrain = (stats?.total_boxes ?? 0) >= 10 && status?.state !== "running";
+  const progressPct = status && status.total_epochs
+    ? Math.round((status.epochs_done / status.total_epochs) * 100)
+    : 0;
 
   return (
     <div className="page">
+      <Link to={`/projects/${id}`} className="back-link">
+        <ChevronLeft size={16} />
+        Project
+      </Link>
+
       <header className="page-header">
-        <Link to={`/projects/${id}`} className="muted">
-          ← Project
-        </Link>
-        <h2>Train</h2>
+        <h2>Train model</h2>
+        {status && status.state !== "idle" && <StatusBadge state={status.state} />}
       </header>
 
       {status?.state !== "running" && (
@@ -108,7 +125,7 @@ export function TrainPage() {
             </select>
           </label>
           <label>
-            Epochs: {epochs}
+            Epochs: <span className="mono">{epochs}</span>
             <input
               type="range"
               min={50}
@@ -127,12 +144,18 @@ export function TrainPage() {
                 onClick={() => setImgsz(sz)}
                 type="button"
               >
-                {sz}
+                {sz}px
               </button>
             ))}
           </div>
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error">
+              <AlertCircle />
+              {error}
+            </p>
+          )}
           <button className="btn-primary" onClick={onStart} disabled={!canTrain || !baseModel}>
+            <Zap size={16} />
             Start training
           </button>
           {!canTrain && (
@@ -145,11 +168,18 @@ export function TrainPage() {
         <div className="card">
           <h3>Training in progress…</h3>
           <progress value={status.epochs_done} max={status.total_epochs || 1} />
-          <p>
-            Epoch {status.epochs_done} / {status.total_epochs} — base model: {status.base_model}
+          <p className="muted">
+            Epoch <span className="mono">{status.epochs_done} / {status.total_epochs}</span>
+            {" "}({progressPct}%) — base model: <span className="mono">{status.base_model}</span>
           </p>
-          {error && <p className="error">{error}</p>}
-          <button className="btn-secondary" onClick={onCancel}>
+          {error && (
+            <p className="error">
+              <AlertCircle />
+              {error}
+            </p>
+          )}
+          <button className="btn-danger" onClick={onCancel}>
+            <Square size={14} />
             Stop training
           </button>
         </div>
@@ -159,12 +189,17 @@ export function TrainPage() {
         <div className="card">
           <h3>
             {status.state === "done"
-              ? "Training complete — model deployed!"
+              ? "Training complete — model deployed"
               : status.state === "cancelled"
               ? "Training cancelled"
               : "Training failed"}
           </h3>
-          {status.error && <p className="error">{status.error}</p>}
+          {status.error && (
+            <p className="error">
+              <AlertCircle />
+              {status.error}
+            </p>
+          )}
           {status.state === "done" && status.map50 != null && (
             <div className="metric-chip-row">
               <MetricChip label="mAP50" value={status.map50} />
@@ -176,9 +211,11 @@ export function TrainPage() {
           {status.state === "done" && (
             <div className="header-actions">
               <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
+                <FileText size={16} />
                 Download report
               </button>
               <button className="btn-secondary" onClick={() => id && api.downloadModel(id)}>
+                <Download size={16} />
                 Download model
               </button>
             </div>
@@ -191,6 +228,24 @@ export function TrainPage() {
         <MetricsChart data={metrics} />
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ state }: { state: TrainingStatus["state"] }) {
+  const config: Record<string, { icon: typeof CheckCircle2; label: string }> = {
+    running: { icon: Zap, label: "Running" },
+    done: { icon: CheckCircle2, label: "Done" },
+    failed: { icon: XCircle, label: "Failed" },
+    cancelled: { icon: Ban, label: "Cancelled" },
+  };
+  const entry = config[state];
+  if (!entry) return null;
+  const Icon = entry.icon;
+  return (
+    <span className="status-badge" data-state={state}>
+      <Icon />
+      {entry.label}
+    </span>
   );
 }
 

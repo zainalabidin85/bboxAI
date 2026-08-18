@@ -1,11 +1,10 @@
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
+import { FolderOpen, Plus, Trash2, X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api/client";
 import type { Project } from "../api/types";
-import { useAuth } from "../contexts/AuthContext";
 
 export function ProjectsPage() {
-  const { displayName, logout } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -63,23 +62,17 @@ export function ProjectsPage() {
     <div className="page">
       <header className="page-header">
         <h2>Projects</h2>
-        <div className="header-actions">
-          <span className="muted">{displayName}</span>
-          <button className="btn-secondary" onClick={logout}>
-            Logout
-          </button>
-        </div>
+        <button className="btn-primary" onClick={() => setShowCreate((v) => !v)}>
+          {showCreate ? <X size={16} /> : <Plus size={16} />}
+          {showCreate ? "Cancel" : "New project"}
+        </button>
       </header>
-
-      <button className="btn-primary" onClick={() => setShowCreate((v) => !v)}>
-        {showCreate ? "Cancel" : "+ New project"}
-      </button>
 
       {showCreate && (
         <form className="card" onSubmit={onCreate}>
           <label>
             Project name
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
+            <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
           </label>
           <label>
             Classes (comma-separated)
@@ -92,15 +85,19 @@ export function ProjectsPage() {
           </label>
           {error && <p className="error">{error}</p>}
           <button className="btn-primary" type="submit">
-            Create
+            Create project
           </button>
         </form>
       )}
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="muted">Loading…</p>
       ) : projects.length === 0 ? (
-        <p className="muted">No projects yet.</p>
+        <div className="empty-state card">
+          <FolderOpen />
+          <h3>No projects yet</h3>
+          <p className="muted">Create your first project to start annotating images.</p>
+        </div>
       ) : (
         <div className="card-grid">
           {projects.map((p) => (
@@ -108,14 +105,15 @@ export function ProjectsPage() {
               <div className="header-actions">
                 <h3>{p.name}</h3>
                 <button
-                  className="btn-secondary"
+                  className="btn-ghost"
                   onClick={(e) => onDelete(e, p.id, p.name)}
                   title="Delete project"
+                  aria-label={`Delete project ${p.name}`}
                 >
-                  Delete
+                  <Trash2 size={16} />
                 </button>
               </div>
-              <p className="muted">{p.classes.length} class(es)</p>
+              <p className="muted">{p.classes.length} class{p.classes.length === 1 ? "" : "es"}</p>
               <div className="chip-row">
                 {p.classes.slice(0, 5).map((c) => (
                   <span className="chip" key={c.id}>

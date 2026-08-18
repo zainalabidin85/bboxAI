@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AlertCircle, ChevronLeft, Loader2, Trash2, Zap } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { Project, Stats } from "../api/types";
@@ -51,16 +52,21 @@ export function ProjectDetailPage() {
     navigate("/projects");
   }
 
-  if (!project || !stats) return <p>Loading…</p>;
+  if (!project || !stats) return <p className="muted">Loading…</p>;
+
+  const canTrain = stats.total_boxes >= 10;
 
   return (
     <div className="page">
+      <Link to="/projects" className="back-link">
+        <ChevronLeft size={16} />
+        Projects
+      </Link>
+
       <header className="page-header">
-        <Link to="/projects" className="muted">
-          ← Projects
-        </Link>
         <h2>{project.name}</h2>
-        <button className="btn-secondary" onClick={onDelete}>
+        <button className="btn-danger" onClick={onDelete}>
+          <Trash2 size={16} />
           Delete project
         </button>
       </header>
@@ -73,18 +79,18 @@ export function ProjectDetailPage() {
         ))}
       </div>
 
-      <div className="stat-row">
+      <div className="stat-row" style={{ marginTop: "var(--space-4)" }}>
         <div className="stat">
           <strong>{stats.total}</strong>
-          <span>images</span>
+          <span>Images</span>
         </div>
         <div className="stat">
           <strong>{stats.labeled}</strong>
-          <span>labeled</span>
+          <span>Labeled</span>
         </div>
         <div className="stat">
           <strong>{stats.total_boxes}</strong>
-          <span>boxes</span>
+          <span>Boxes</span>
         </div>
       </div>
 
@@ -108,18 +114,31 @@ export function ProjectDetailPage() {
           onChange={onVideoSelected}
           disabled={uploading}
         />
-        {uploading && <p>Extracting frames…</p>}
-        {error && <p className="error">{error}</p>}
+        {uploading && (
+          <p className="muted" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Loader2 size={14} className="spin" />
+            Extracting frames…
+          </p>
+        )}
+        {error && (
+          <p className="error">
+            <AlertCircle />
+            {error}
+          </p>
+        )}
       </div>
 
       <button
         className="btn-primary"
         onClick={() => navigate(`/projects/${id}/train`)}
-        disabled={stats.total_boxes < 10}
-        title={stats.total_boxes < 10 ? "Need at least 10 labeled boxes." : ""}
+        disabled={!canTrain}
       >
+        <Zap size={16} />
         Train model
       </button>
+      {!canTrain && (
+        <p className="muted">Need at least 10 labeled boxes to train (have {stats.total_boxes}).</p>
+      )}
     </div>
   );
 }

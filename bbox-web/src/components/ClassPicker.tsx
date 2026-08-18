@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import type { BboxClass } from "../api/types";
 import { classColor } from "./BBoxCanvas";
 
@@ -11,7 +12,12 @@ export function ClassPicker({ classes, onPick, onCancel }: Props) {
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
-        <h3>Pick a class</h3>
+        <div className="header-actions">
+          <h3 style={{ flex: 1 }}>Pick a class</h3>
+          <button className="btn-ghost" onClick={onCancel} aria-label="Cancel">
+            <X size={16} />
+          </button>
+        </div>
         <div className="class-list">
           {classes.map((c) => (
             <button
@@ -25,9 +31,6 @@ export function ClassPicker({ classes, onPick, onCancel }: Props) {
             </button>
           ))}
         </div>
-        <button className="btn-secondary" onClick={onCancel}>
-          Cancel
-        </button>
       </div>
     </div>
   );

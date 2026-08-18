@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Undo2 } from "lucide-react";
 import type { Annotation, BboxClass } from "../api/types";
 import { ClassPicker } from "./ClassPicker";
 
@@ -142,9 +143,10 @@ export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange }: Props) {
       />
       <div className="canvas-toolbar">
         <button className="btn-secondary" onClick={undo} disabled={boxes.length === 0}>
+          <Undo2 size={16} />
           Undo
         </button>
-        <span>{boxes.length} box(es)</span>
+        <span>{boxes.length} box{boxes.length === 1 ? "" : "es"}</span>
       </div>
       {pendingRect && (
         <ClassPicker

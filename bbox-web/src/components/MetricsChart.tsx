@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { LineChart as LineChartIcon } from "lucide-react";
 import type { EpochMetric } from "../api/types";
 
 interface Props {
@@ -16,7 +17,12 @@ interface Props {
 
 export function MetricsChart({ data }: Props) {
   if (data.length === 0) {
-    return <p className="muted">No epoch data yet — metrics appear after the first epoch completes.</p>;
+    return (
+      <div className="empty-state">
+        <LineChartIcon />
+        <p className="muted">No epoch data yet — metrics appear after the first epoch completes.</p>
+      </div>
+    );
   }
 
   return (
