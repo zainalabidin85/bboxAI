@@ -94,6 +94,7 @@ export interface TokenPackage {
 export interface WalletInfo {
   balance: number;
   packages: Record<string, TokenPackage>;
+  welcome_bonus_granted: boolean;
 }
 
 export interface AiAssistResult {

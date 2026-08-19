@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, Coins, Loader2 } from "lucide-react";
+import { AlertCircle, Coins, Loader2, PartyPopper } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { WalletInfo } from "../api/types";
@@ -44,6 +44,13 @@ export function WalletPage() {
 
       {status === "processing" && (
         <p className="muted">Payment processing — your balance will update once it's confirmed.</p>
+      )}
+
+      {wallet?.welcome_bonus_granted && (
+        <p className="wallet-welcome-banner">
+          <PartyPopper size={16} />
+          Welcome! You've received {wallet.balance} free AI-assist tokens to try it out.
+        </p>
       )}
 
       {wallet ? (
