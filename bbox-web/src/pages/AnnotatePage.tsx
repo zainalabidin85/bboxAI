@@ -117,6 +117,7 @@ export function AnnotatePage() {
     setError(null);
     try {
       await api.commitFrame(id, batchId, currentFrame.frame_id, boxes);
+      if (IS_REMOTE) api.listProjectImages(id).then(setProjectImages); // keep the AI Assist gate/examples fresh
       await advance();
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Failed to save annotations.");
