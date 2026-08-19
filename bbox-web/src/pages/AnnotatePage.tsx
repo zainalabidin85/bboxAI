@@ -60,6 +60,14 @@ export function AnnotatePage() {
   const [aiBatchActive, setAiBatchActive] = useState(false);
   const [aiBatchExamples, setAiBatchExamples] = useState<AiExample[] | null>(null);
   const aiAssistedFrameRef = useRef<string | null>(null);
+  // Which frame objectUrl actually belongs to. Needed because the frame-load
+  // effect below and the batch-assist effect run in the same React commit —
+  // a setObjectUrl(null) in one doesn't become visible to the other until the
+  // *next* render, so without this a frame change lets the batch effect fire
+  // against the previous (already-revoked) blob URL for one tick. Set only
+  // once the real fetch for a frame resolves, so it's always in sync with
+  // objectUrl by the time a re-render makes the pairing visible.
+  const objectUrlFrameIdRef = useRef<string | null>(null);
 
   const batchId = state?.batchId;
   const currentFrame = frames[index];
@@ -75,17 +83,24 @@ export function AnnotatePage() {
   useEffect(() => {
     if (!id || !batchId || !currentFrame) {
       setObjectUrl(null);
+      objectUrlFrameIdRef.current = null;
       return;
     }
     let revoked = "";
+    let cancelled = false;
+    setObjectUrl(null);
+    objectUrlFrameIdRef.current = null;
     api.fetchPendingFrameBlob(id, batchId, currentFrame.frame_id).then((blob) => {
+      if (cancelled) return;
       const url = URL.createObjectURL(blob);
       revoked = url;
+      objectUrlFrameIdRef.current = currentFrame.frame_id;
       setObjectUrl(url);
     });
     setBoxes([]);
     aiSnapshotRef.current = {};
     return () => {
+      cancelled = true;
       if (revoked) URL.revokeObjectURL(revoked);
     };
   }, [id, batchId, currentFrame]);
@@ -94,6 +109,7 @@ export function AnnotatePage() {
   // while a batch is active, AI-assist it automatically (once per frame).
   useEffect(() => {
     if (!aiBatchActive || !objectUrl || !aiBatchExamples || !project || !currentFrame) return;
+    if (objectUrlFrameIdRef.current !== currentFrame.frame_id) return; // objectUrl is stale, real one still loading
     if (aiAssistedFrameRef.current === currentFrame.frame_id) return;
     aiAssistedFrameRef.current = currentFrame.frame_id;
     runAiAssist(aiBatchExamples);
