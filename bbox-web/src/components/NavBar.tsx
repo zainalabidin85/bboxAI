@@ -1,20 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Coins, Scan, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import * as api from "../api/client";
+import { useWallet } from "../contexts/WalletContext";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
 
 export function NavBar() {
   const { displayName, logout } = useAuth();
-  const [balance, setBalance] = useState<number | null>(null);
+  const { balance, refresh } = useWallet();
 
   useEffect(() => {
-    if (IS_REMOTE) {
-      api.getWallet().then((w) => setBalance(w.balance)).catch(() => setBalance(null));
-    }
-  }, []);
+    if (IS_REMOTE) refresh();
+  }, [refresh]);
 
   return (
     <nav className="navbar">

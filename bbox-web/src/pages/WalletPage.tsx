@@ -3,18 +3,22 @@ import { AlertCircle, Coins, Loader2, PartyPopper } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { WalletInfo } from "../api/types";
+import { useWallet } from "../contexts/WalletContext";
 
 export function WalletPage() {
   const [params] = useSearchParams();
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [busyPackage, setBusyPackage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { setBalance: setNavBalance } = useWallet();
 
   const status = params.get("status");
 
   async function refresh() {
     try {
-      setWallet(await api.getWallet());
+      const data = await api.getWallet();
+      setWallet(data);
+      setNavBalance(data.balance); // keep the nav badge in sync
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Failed to load wallet.");
     }
@@ -22,6 +26,13 @@ export function WalletPage() {
 
   useEffect(() => {
     refresh();
+    // Coming back from a payment redirect: the webhook that actually credits
+    // tokens can land a moment after Stripe's redirect does, so re-check once.
+    if (status === "success") {
+      const t = setTimeout(refresh, 3000);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onBuy(packageId: string) {

@@ -5,6 +5,7 @@ import * as api from "../api/client";
 import type { Annotation, ImageBox, PendingFrame, ProjectImage, Project } from "../api/types";
 import { BBoxCanvas } from "../components/BBoxCanvas";
 import { downscaleToBase64Jpeg } from "../utils/image";
+import { useWallet } from "../contexts/WalletContext";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
 const MAX_AI_ASSIST_EXAMPLES = 5;
@@ -36,6 +37,7 @@ export function AnnotatePage() {
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { setBalance } = useWallet();
 
   // Pre-existing annotated images in the project, fetched once — used both to
   // gate the AI Assist button (enough examples to learn from?) and as the
@@ -131,10 +133,11 @@ export function AnnotatePage() {
     setAiBusy(true);
     setError(null);
     try {
-      const target_image_b64 = await downscaleToBase64Jpeg(objectUrl);
+      const target_image_b64 = await downscaleToBase64Jpeg(objectUrl, undefined, undefined, true);
       const classes = project.classes.map((c) => ({ class_id: c.id, name: c.name }));
       const result = await api.requestAiAssist(classes, examples, target_image_b64);
       setBoxes(result.boxes.map(({ x, y, w, h, class_id }) => ({ x, y, w, h, class_id })));
+      setBalance(result.tokens_remaining); // nav badge reflects the spend immediately, no extra fetch
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "AI Assist failed.");
       setAiBatchActive(false); // e.g. out of tokens — fall back to manual for the rest of the batch
@@ -156,7 +159,7 @@ export function AnnotatePage() {
       const examples = await Promise.all(
         withBoxes.map(async (img) => {
           const blob = await api.fetchProjectImageBlob(id, img.image_id);
-          const image_b64 = await downscaleToBase64Jpeg(blob);
+          const image_b64 = await downscaleToBase64Jpeg(blob, undefined, undefined, true);
           return { image_b64, boxes: img.boxes };
         })
       );
