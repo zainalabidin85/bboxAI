@@ -144,6 +144,8 @@ Frame/batch ids are validated against path traversal (`frame_path` rejects `/` a
 | `PATCH` | `/projects/{id}/visibility` | Toggle `is_public` (owner only) |
 | `POST` | `/projects/{id}/upload` | Upload annotated image |
 | `GET` | `/projects/{id}/stats` | Image/label/box counts per class |
+| `GET` | `/projects/{id}/images` | List committed images + boxes (read from disk, owner only) |
+| `GET` | `/projects/{id}/images/{image_id}/file` | Fetch one committed image's raw bytes (owner only) |
 | `POST` | `/projects/{id}/videos/upload` | Upload video, extract frames to a pending batch |
 | `GET` | `/projects/{id}/videos/{batch_id}/{frame_id}/image` | Fetch one pending frame |
 | `POST` | `/projects/{id}/videos/{batch_id}/{frame_id}/commit` | Annotate + commit a pending frame |
@@ -158,7 +160,7 @@ Frame/batch ids are validated against path traversal (`frame_path` rejects `/` a
 | `GET` | `/models` | Public catalog — all public projects with a completed trained model |
 | `GET` | `/models/search?classes=a,b` | Search public catalog by class name |
 
-`bbox-relay` exposes its own small surface: `POST /agent/register`, `POST /login`, `WS /agent/ws` (desktop agent tunnel), and a catch-all `/{full_path}` proxy that forwards any method to the paired desktop's `bbox-api` using a relay session bearer token.
+`bbox-relay` exposes its own small surface: `POST /agent/register`, `POST /login`, `WS /agent/ws` (desktop agent tunnel), `GET /wallet`, `POST /wallet/topup`, `POST /wallet/topup/webhook` (Billplz callback, no bearer auth), `POST /ai-assist`, and a catch-all `/{full_path}` proxy that forwards any other method/path to the paired desktop's `bbox-api` using a relay session bearer token. See "AI-Assist Tokens" below.
 
 ### Training Pipeline
 
@@ -182,6 +184,17 @@ Lets a `bbox-web` client reach a `bbox-api` running on someone's desktop (e.g. b
 5. Reconnects with backoff (`2,4,8,16,30s`) if the tunnel drops; the relay marks the device offline and fails in-flight requests immediately (`DeviceOffline`) rather than hanging.
 
 This is independent of bboxAI's own auth in the sense that `bbox-relay` has its own device/session model — but unlike the old pairing-code design, the *login* on `bboxai-remote.unitani.com` now checks a real bboxAI account password (verified against the paired device's own `bbox-api`, not duplicated on the relay).
+
+### AI-Assist Tokens (monetization, bboxai-remote only)
+
+The only paid feature in bboxAI: on the annotation screen, a **remote-build-only** "AI Assist" button (`AnnotatePage.tsx`, gated on `VITE_REMOTE`) sends Claude (Anthropic's vision API) a few of the project's already-annotated images as few-shot examples plus the new target image, and gets back suggested bounding boxes for the user to review/edit before committing — same commit path as manually-drawn boxes, nothing new there. `bbox-api` stays free/self-hostable and payment-unaware; all wallet/AI logic lives in `bbox-relay` (private repo), consistent with it already being the hosted-product-only component.
+
+- **Sourcing examples**: `bbox-web` calls `GET /projects/{id}/images` (transparently proxied through the relay's existing catch-all, unchanged) to list up to 5 already-annotated images with their boxes, fetches each via `GET /projects/{id}/images/{image_id}/file`, downscales everything client-side to ~1024px long side (`utils/image.ts`), then `POST`s target + examples directly to `bbox-relay`'s `/ai-assist` — **not** proxied to `bbox-api`, since the payment/Claude logic is relay-side.
+- **Wallet**: `bbox-relay/models.py`'s `TokenLedger` is an append-only ledger (`username, delta, reason, billplz_bill_id`) — balance is `SUM(delta)`, no separate mutable balance row to drift out of sync. `wallet.py` has the balance/credit/debit helpers; `wallet.TOKEN_PACKAGES` defines the purchasable tiers (100/300/1000 tokens for RM5/15/50 — 1 token = 1 AI-assist call = RM0.05, matching the stated 10 tokens = RM0.50 rate).
+- **Billplz top-up**: `POST /wallet/topup` (`billplz.py`) creates a Billplz bill and a pending `BillplzOrder` row; `POST /wallet/topup/webhook` verifies Billplz's `X-Signature` (sorted-key HMAC-SHA256, see `billplz.verify_signature`) with no bearer auth (it's a server-to-server callback), then credits the ledger — idempotent via `wallet.already_credited` checking `billplz_bill_id` before crediting, since Billplz may call the webhook more than once for the same bill.
+- **`POST /ai-assist`**: bearer-auth like the catch-all proxy (`_current_username`, extracted from the same device-id-decode pattern), checks balance ≥ `AI_ASSIST_COST_TOKENS` (default 1), calls Claude via `ai_assist.suggest_boxes` (one Messages API call, interleaved example image/box-JSON pairs + the target image, asking for a strict JSON box array back), debits **only on success** so a failed Claude call never costs a token, and returns the parsed boxes. A per-username in-memory rate limit (20 calls / 10 min, mirrors the `/login` failure limiter) guards against runaway spend from a client bug.
+- **Config** (`bbox-relay/.env`): `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (default `claude-sonnet-5`), `BILLPLZ_API_KEY`, `BILLPLZ_COLLECTION_ID`, `BILLPLZ_X_SIGNATURE_KEY`, `BILLPLZ_BASE_URL` (sandbox vs production), `WEB_APP_URL` (used to build Billplz's `redirect_url` back into `bbox-web`'s `/wallet` page).
+- **Known gap, `Upload` DB model is unused**: `bbox-api`'s `list_images`/`get_image_file` read committed images straight off disk (`images/{id}{ext}` + `labels/{id}.txt`) rather than querying the `Upload` table, because nothing in `bbox-api` ever actually inserts `Upload` rows (the model exists in `models.py` but is dead code) — discovered while building this feature. Not fixed as part of this feature (out of scope), just worked around; worth cleaning up (either wire up `Upload` inserts, or remove the unused model) next time this area is touched.
 
 ### Flutter Packages
 

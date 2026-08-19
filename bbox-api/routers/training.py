@@ -78,6 +78,91 @@ async def upload_image(
     return result
 
 
+# ── Images (list committed images + their boxes, e.g. for AI-assist few-shot examples) ─
+#
+# Note: committed images are tracked purely on disk (images/{id}{ext} +
+# labels/{id}.txt), same as get_stats() below — the `Upload` DB model exists
+# but nothing currently writes rows into it, so these read from disk instead.
+
+def _parse_label_file(label_path: str, class_names: dict[int, str]) -> list[dict]:
+    if not os.path.isfile(label_path):
+        return []
+    boxes = []
+    with open(label_path) as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) != 5:
+                continue
+            class_id = int(parts[0])
+            cx, cy, w, h = (float(p) for p in parts[1:])
+            boxes.append({
+                "class_id": class_id,
+                "class_name": class_names.get(class_id, "unknown"),
+                "x": cx - w / 2,
+                "y": cy - h / 2,
+                "w": w,
+                "h": h,
+            })
+    return boxes
+
+
+@router.get("/{project_id}/images")
+def list_images(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project_row = db.query(Project).filter(Project.id == project_id).first()
+    if not project_row:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    _require_owner(project_row, current_user)
+    project = _load_project(project_id, db)
+    class_names = {c["id"]: c["name"] for c in project["classes"]}
+
+    img_dir = _proj_images_dir(project_id)
+    labels_dir = _proj_labels_dir(project_id)
+    if not os.path.isdir(img_dir):
+        return []
+
+    entries = [f for f in os.listdir(img_dir) if os.path.isfile(os.path.join(img_dir, f))]
+    entries.sort(key=lambda f: os.path.getmtime(os.path.join(img_dir, f)), reverse=True)
+
+    result = []
+    for filename in entries:
+        image_id = os.path.splitext(filename)[0]
+        label_path = os.path.join(labels_dir, f"{image_id}.txt")
+        result.append({
+            "image_id": image_id,
+            "filename": f"images/{filename}",
+            "boxes": _parse_label_file(label_path, class_names),
+        })
+    return result
+
+
+@router.get("/{project_id}/images/{image_id}/file")
+def get_image_file(
+    project_id: str,
+    image_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project_row = db.query(Project).filter(Project.id == project_id).first()
+    if not project_row:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    _require_owner(project_row, current_user)
+
+    if "/" in image_id or ".." in image_id:
+        raise HTTPException(status_code=400, detail="Invalid image id.")
+
+    img_dir = _proj_images_dir(project_id)
+    matches = [f for f in os.listdir(img_dir) if os.path.isfile(os.path.join(img_dir, f))
+               and os.path.splitext(f)[0] == image_id] if os.path.isdir(img_dir) else []
+    if not matches:
+        raise HTTPException(status_code=404, detail="Image not found.")
+
+    return FileResponse(os.path.join(img_dir, matches[0]))
+
+
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 @router.get("/{project_id}/stats")

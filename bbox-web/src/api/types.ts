@@ -72,3 +72,31 @@ export interface Annotation {
   h: number;
   class_id: number;
 }
+
+// ── AI-assist (bboxai-remote only) ──────────────────────────────────────────
+
+export interface ImageBox extends Annotation {
+  class_name: string;
+}
+
+export interface ProjectImage {
+  image_id: string;
+  filename: string;
+  boxes: ImageBox[];
+}
+
+export interface TokenPackage {
+  tokens: number;
+  amount_cents: number;
+  label: string;
+}
+
+export interface WalletInfo {
+  balance: number;
+  packages: Record<string, TokenPackage>;
+}
+
+export interface AiAssistResult {
+  boxes: ImageBox[];
+  tokens_remaining: number;
+}

@@ -1,13 +1,17 @@
 import axios from "axios";
 import type {
+  AiAssistResult,
   Annotation,
   EpochMetric,
+  ImageBox,
   PendingBatch,
   PendingFrame,
   Project,
+  ProjectImage,
   Stats,
   TrainingStatus,
   VideoUploadResult,
+  WalletInfo,
 } from "./types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -211,6 +215,43 @@ export async function skipFrame(projectId: string, batchId: string, frameId: str
   const { data } = await client.post(
     `/projects/${projectId}/videos/${batchId}/${frameId}/skip`
   );
+  return data;
+}
+
+// ── AI-assist + wallet (bboxai-remote only) ─────────────────────────────────
+
+export async function listProjectImages(projectId: string): Promise<ProjectImage[]> {
+  const { data } = await client.get(`/projects/${projectId}/images`);
+  return data;
+}
+
+export async function fetchProjectImageBlob(projectId: string, imageId: string): Promise<Blob> {
+  const { data } = await client.get(`/projects/${projectId}/images/${imageId}/file`, {
+    responseType: "blob",
+  });
+  return data;
+}
+
+export async function requestAiAssist(
+  classes: { class_id: number; name: string }[],
+  examples: { image_b64: string; boxes: ImageBox[] }[],
+  targetImageB64: string
+): Promise<AiAssistResult> {
+  const { data } = await client.post("/ai-assist", {
+    classes,
+    examples,
+    target_image_b64: targetImageB64,
+  });
+  return data;
+}
+
+export async function getWallet(): Promise<WalletInfo> {
+  const { data } = await client.get("/wallet");
+  return data;
+}
+
+export async function initiateTopup(pkg: string): Promise<{ bill_url: string }> {
+  const { data } = await client.post("/wallet/topup", { package: pkg });
   return data;
 }
 

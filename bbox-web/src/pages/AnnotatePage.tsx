@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ChevronLeft, Check, Loader2, SkipForward } from "lucide-react";
+import { AlertCircle, ChevronLeft, Check, Loader2, SkipForward, Sparkles } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { Annotation, PendingFrame, Project } from "../api/types";
 import { BBoxCanvas } from "../components/BBoxCanvas";
+import { downscaleToBase64Jpeg } from "../utils/image";
+
+const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
+const MAX_AI_ASSIST_EXAMPLES = 5;
 
 interface LocationState {
   batchId: string;
@@ -22,6 +26,7 @@ export function AnnotatePage() {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [boxes, setBoxes] = useState<Annotation[]>([]);
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const batchId = state?.batchId;
@@ -85,6 +90,37 @@ export function AnnotatePage() {
     }
   }
 
+  async function onAiAssist() {
+    if (!id || !project || !objectUrl) return;
+    setAiBusy(true);
+    setError(null);
+    try {
+      const images = await api.listProjectImages(id);
+      const withBoxes = images.filter((img) => img.boxes.length > 0).slice(0, MAX_AI_ASSIST_EXAMPLES);
+      if (withBoxes.length === 0) {
+        setError("Annotate a few images manually first so AI Assist has examples to learn from.");
+        return;
+      }
+
+      const examples = await Promise.all(
+        withBoxes.map(async (img) => {
+          const blob = await api.fetchProjectImageBlob(id, img.image_id);
+          const image_b64 = await downscaleToBase64Jpeg(blob);
+          return { image_b64, boxes: img.boxes };
+        })
+      );
+      const target_image_b64 = await downscaleToBase64Jpeg(objectUrl);
+      const classes = project.classes.map((c) => ({ class_id: c.id, name: c.name }));
+
+      const result = await api.requestAiAssist(classes, examples, target_image_b64);
+      setBoxes(result.boxes.map(({ x, y, w, h, class_id }) => ({ x, y, w, h, class_id })));
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "AI Assist failed.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function onSkip() {
     if (!currentFrame || !id || !batchId) return;
     setBusy(true);
@@ -134,6 +170,12 @@ export function AnnotatePage() {
       )}
 
       <div className="annotate-actions">
+        {IS_REMOTE && (
+          <button className="btn-secondary" onClick={onAiAssist} disabled={busy || aiBusy || !objectUrl}>
+            {aiBusy ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
+            AI Assist
+          </button>
+        )}
         <button className="btn-secondary" onClick={onSkip} disabled={busy}>
           <SkipForward size={16} />
           Skip frame

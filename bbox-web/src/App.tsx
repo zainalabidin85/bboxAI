@@ -7,6 +7,7 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { AnnotatePage } from "./pages/AnnotatePage";
 import { TrainPage } from "./pages/TrainPage";
+import { WalletPage } from "./pages/WalletPage";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
 
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/projects/:id/annotate" element={<AnnotatePage />} />
           <Route path="/projects/:id/train" element={<TrainPage />} />
+          {IS_REMOTE && <Route path="/wallet" element={<WalletPage />} />}
         </Route>
       </Routes>
     </AuthProvider>
