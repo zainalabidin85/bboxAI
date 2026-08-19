@@ -1,17 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, ChevronLeft, Check, Loader2, SkipForward, Sparkles } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
-import type { Annotation, PendingFrame, Project } from "../api/types";
+import type { Annotation, ImageBox, PendingFrame, ProjectImage, Project } from "../api/types";
 import { BBoxCanvas } from "../components/BBoxCanvas";
 import { downscaleToBase64Jpeg } from "../utils/image";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
 const MAX_AI_ASSIST_EXAMPLES = 5;
+// AI Assist stays disabled until the project has at least this many manually
+// annotated images for it to learn style from.
+const MIN_AI_ASSIST_EXAMPLES = 2;
 
 interface LocationState {
   batchId: string;
   frames: PendingFrame[];
+}
+
+interface AiExample {
+  image_b64: string;
+  boxes: ImageBox[];
 }
 
 export function AnnotatePage() {
@@ -29,11 +37,27 @@ export function AnnotatePage() {
   const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Pre-existing annotated images in the project, fetched once — used both to
+  // gate the AI Assist button (enough examples to learn from?) and as the
+  // few-shot source when AI Assist runs.
+  const [projectImages, setProjectImages] = useState<ProjectImage[] | null>(null);
+
+  // Batch mode: once AI Assist is pressed, every subsequent frame in this
+  // queue gets AI-suggested boxes automatically (still paused for review —
+  // see aiAssistedFrameRef) until the batch ends or something goes wrong.
+  const [aiBatchActive, setAiBatchActive] = useState(false);
+  const [aiBatchExamples, setAiBatchExamples] = useState<AiExample[] | null>(null);
+  const aiAssistedFrameRef = useRef<string | null>(null);
+
   const batchId = state?.batchId;
   const currentFrame = frames[index];
 
   useEffect(() => {
     if (id) api.getProject(id).then(setProject);
+  }, [id]);
+
+  useEffect(() => {
+    if (IS_REMOTE && id) api.listProjectImages(id).then(setProjectImages);
   }, [id]);
 
   useEffect(() => {
@@ -52,6 +76,16 @@ export function AnnotatePage() {
       if (revoked) URL.revokeObjectURL(revoked);
     };
   }, [id, batchId, currentFrame]);
+
+  // Batch-mode auto-assist: whenever a new frame's image becomes available
+  // while a batch is active, AI-assist it automatically (once per frame).
+  useEffect(() => {
+    if (!aiBatchActive || !objectUrl || !aiBatchExamples || !project || !currentFrame) return;
+    if (aiAssistedFrameRef.current === currentFrame.frame_id) return;
+    aiAssistedFrameRef.current = currentFrame.frame_id;
+    runAiAssist(aiBatchExamples);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiBatchActive, objectUrl, aiBatchExamples, currentFrame]);
 
   if (!id || !batchId || frames.length === 0) {
     return (
@@ -72,6 +106,7 @@ export function AnnotatePage() {
     if (index + 1 < frames.length) {
       setIndex(index + 1);
     } else {
+      setAiBatchActive(false);
       navigate(`/projects/${id}`);
     }
   }
@@ -90,18 +125,33 @@ export function AnnotatePage() {
     }
   }
 
-  async function onAiAssist() {
+  async function runAiAssist(examples: AiExample[]) {
     if (!id || !project || !objectUrl) return;
     setAiBusy(true);
     setError(null);
     try {
-      const images = await api.listProjectImages(id);
-      const withBoxes = images.filter((img) => img.boxes.length > 0).slice(0, MAX_AI_ASSIST_EXAMPLES);
-      if (withBoxes.length === 0) {
-        setError("Annotate a few images manually first so AI Assist has examples to learn from.");
+      const target_image_b64 = await downscaleToBase64Jpeg(objectUrl);
+      const classes = project.classes.map((c) => ({ class_id: c.id, name: c.name }));
+      const result = await api.requestAiAssist(classes, examples, target_image_b64);
+      setBoxes(result.boxes.map(({ x, y, w, h, class_id }) => ({ x, y, w, h, class_id })));
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "AI Assist failed.");
+      setAiBatchActive(false); // e.g. out of tokens — fall back to manual for the rest of the batch
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function onAiAssistStart() {
+    if (!id || !objectUrl || !projectImages) return;
+    setAiBusy(true);
+    setError(null);
+    try {
+      const withBoxes = projectImages.filter((img) => img.boxes.length > 0).slice(0, MAX_AI_ASSIST_EXAMPLES);
+      if (withBoxes.length < MIN_AI_ASSIST_EXAMPLES) {
+        setError(`Annotate at least ${MIN_AI_ASSIST_EXAMPLES} images manually first so AI Assist has examples to learn from.`);
         return;
       }
-
       const examples = await Promise.all(
         withBoxes.map(async (img) => {
           const blob = await api.fetchProjectImageBlob(id, img.image_id);
@@ -109,11 +159,9 @@ export function AnnotatePage() {
           return { image_b64, boxes: img.boxes };
         })
       );
-      const target_image_b64 = await downscaleToBase64Jpeg(objectUrl);
-      const classes = project.classes.map((c) => ({ class_id: c.id, name: c.name }));
-
-      const result = await api.requestAiAssist(classes, examples, target_image_b64);
-      setBoxes(result.boxes.map(({ x, y, w, h, class_id }) => ({ x, y, w, h, class_id })));
+      setAiBatchExamples(examples);
+      setAiBatchActive(true);
+      aiAssistedFrameRef.current = null; // let the batch-mode effect pick up the current frame
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "AI Assist failed.");
     } finally {
@@ -134,6 +182,10 @@ export function AnnotatePage() {
       setBusy(false);
     }
   }
+
+  const annotatedCount = projectImages?.filter((img) => img.boxes.length > 0).length ?? 0;
+  const aiAssistDisabled =
+    busy || aiBusy || !objectUrl || !projectImages || annotatedCount < MIN_AI_ASSIST_EXAMPLES || aiBatchActive;
 
   return (
     <div className="page">
@@ -171,9 +223,18 @@ export function AnnotatePage() {
 
       <div className="annotate-actions">
         {IS_REMOTE && (
-          <button className="btn-secondary" onClick={onAiAssist} disabled={busy || aiBusy || !objectUrl}>
+          <button
+            className="btn-secondary"
+            onClick={onAiAssistStart}
+            disabled={aiAssistDisabled}
+            title={
+              projectImages && annotatedCount < MIN_AI_ASSIST_EXAMPLES
+                ? `Annotate at least ${MIN_AI_ASSIST_EXAMPLES} images manually first`
+                : undefined
+            }
+          >
             {aiBusy ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-            AI Assist
+            {aiBatchActive ? "AI Assist (active)" : "AI Assist"}
           </button>
         )}
         <button className="btn-secondary" onClick={onSkip} disabled={busy}>
