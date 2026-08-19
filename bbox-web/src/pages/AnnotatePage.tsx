@@ -7,7 +7,7 @@ import { BBoxCanvas } from "../components/BBoxCanvas";
 import { downscaleToBase64Jpeg } from "../utils/image";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
-const MAX_AI_ASSIST_EXAMPLES = 5;
+const MAX_AI_ASSIST_EXAMPLES = 3; // DeepSeek vision caps at 4 images/call (examples + 1 target)
 
 interface LocationState {
   batchId: string;
