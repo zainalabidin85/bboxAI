@@ -23,6 +23,12 @@ interface AiExample {
   boxes: ImageBox[];
 }
 
+// Client-only tag carried on AI-suggested boxes so we can tell, at commit
+// time, which final boxes trace back to a suggestion (see aiSnapshotRef).
+type TaggedAnnotation = Annotation & { _aiId?: string };
+
+const AI_MATCH_EPSILON = 0.001; // normalized-coordinate tolerance for "unedited"
+
 export function AnnotatePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -33,7 +39,11 @@ export function AnnotatePage() {
   const [frames, setFrames] = useState<PendingFrame[]>(state?.frames ?? []);
   const [index, setIndex] = useState(0);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [boxes, setBoxes] = useState<Annotation[]>([]);
+  const [boxes, setBoxes] = useState<TaggedAnnotation[]>([]);
+  // AI-suggestion snapshot for the current frame: _aiId -> box as originally
+  // suggested. Boxes state only holds what's still present, so deletions
+  // (which just remove the box) need this separate record to detect.
+  const aiSnapshotRef = useRef<Record<string, Annotation>>({});
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +84,7 @@ export function AnnotatePage() {
       setObjectUrl(url);
     });
     setBoxes([]);
+    aiSnapshotRef.current = {};
     return () => {
       if (revoked) URL.revokeObjectURL(revoked);
     };
@@ -113,12 +124,46 @@ export function AnnotatePage() {
     }
   }
 
+  function reportAiAssistValidation(finalBoxes: TaggedAnnotation[]) {
+    const snapshot = aiSnapshotRef.current;
+    const suggestedIds = Object.keys(snapshot);
+    if (!IS_REMOTE || !id || suggestedIds.length === 0) return;
+
+    const stillPresent = new Map(finalBoxes.filter((b) => b._aiId).map((b) => [b._aiId as string, b]));
+    let accepted = 0;
+    let edited = 0;
+    let deleted = 0;
+    for (const aiId of suggestedIds) {
+      const original = snapshot[aiId];
+      const current = stillPresent.get(aiId);
+      if (!current) {
+        deleted++;
+        continue;
+      }
+      const unchanged =
+        Math.abs(current.x - original.x) < AI_MATCH_EPSILON &&
+        Math.abs(current.y - original.y) < AI_MATCH_EPSILON &&
+        Math.abs(current.w - original.w) < AI_MATCH_EPSILON &&
+        Math.abs(current.h - original.h) < AI_MATCH_EPSILON &&
+        current.class_id === original.class_id;
+      if (unchanged) accepted++;
+      else edited++;
+    }
+
+    // Best-effort — a failed feedback post shouldn't affect the actual commit.
+    api
+      .submitAiAssistFeedback(id, { suggested: suggestedIds.length, accepted, edited, deleted })
+      .catch(() => {});
+  }
+
   async function onCommit() {
     if (!currentFrame || boxes.length === 0 || !id || !batchId) return;
     setBusy(true);
     setError(null);
     try {
-      await api.commitFrame(id, batchId, currentFrame.frame_id, boxes);
+      const payload = boxes.map(({ x, y, w, h, class_id }) => ({ x, y, w, h, class_id }));
+      await api.commitFrame(id, batchId, currentFrame.frame_id, payload);
+      reportAiAssistValidation(boxes);
       if (IS_REMOTE) api.listProjectImages(id).then(setProjectImages); // keep the AI Assist gate/examples fresh
       await advance();
     } catch (err: any) {
@@ -128,15 +173,26 @@ export function AnnotatePage() {
     }
   }
 
-  async function runAiAssist(examples: AiExample[]) {
+  // currentBoxes, when passed, is fed back to Claude as "here's what's on the
+  // image already — improve it" (see ai_assist.py's refine_note) rather than
+  // asking it to guess from scratch again. Used by the "Improve suggestion"
+  // re-click path, not the initial per-frame batch call.
+  async function runAiAssist(examples: AiExample[], currentBoxes?: Annotation[]) {
     if (!id || !project || !objectUrl) return;
     setAiBusy(true);
     setError(null);
     try {
       const target_image_b64 = await downscaleToBase64Jpeg(objectUrl, undefined, undefined, true);
       const classes = project.classes.map((c) => ({ class_id: c.id, name: c.name }));
-      const result = await api.requestAiAssist(classes, examples, target_image_b64);
-      setBoxes(result.boxes.map(({ x, y, w, h, class_id }) => ({ x, y, w, h, class_id })));
+      const result = await api.requestAiAssist(classes, examples, target_image_b64, currentBoxes);
+      const snapshot: Record<string, Annotation> = {};
+      const tagged: TaggedAnnotation[] = result.boxes.map(({ x, y, w, h, class_id }) => {
+        const _aiId = crypto.randomUUID();
+        snapshot[_aiId] = { x, y, w, h, class_id };
+        return { x, y, w, h, class_id, _aiId };
+      });
+      aiSnapshotRef.current = snapshot;
+      setBoxes(tagged);
       setBalance(result.tokens_remaining); // nav badge reflects the spend immediately, no extra fetch
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "AI Assist failed.");
@@ -146,23 +202,49 @@ export function AnnotatePage() {
     }
   }
 
-  async function onAiAssistStart() {
+  async function gatherExamples(): Promise<AiExample[] | null> {
+    if (!id || !projectImages) return null;
+    const withBoxes = projectImages.filter((img) => img.boxes.length > 0).slice(0, MAX_AI_ASSIST_EXAMPLES);
+    if (withBoxes.length < MIN_AI_ASSIST_EXAMPLES) {
+      setError(`Annotate at least ${MIN_AI_ASSIST_EXAMPLES} images manually first so AI Assist has examples to learn from.`);
+      return null;
+    }
+    return Promise.all(
+      withBoxes.map(async (img) => {
+        const blob = await api.fetchProjectImageBlob(id, img.image_id);
+        const image_b64 = await downscaleToBase64Jpeg(blob, undefined, undefined, true);
+        return { image_b64, boxes: img.boxes };
+      })
+    );
+  }
+
+  // Same button drives two actions depending on frame state: with no boxes
+  // yet, it starts (or restarts) the normal batch-suggest flow; with boxes
+  // already on the frame — AI-suggested and/or hand-edited — it re-runs AI
+  // Assist on just this frame, feeding those boxes back so Claude can refine
+  // rather than guess again from a blank slate.
+  async function onAiAssistClick() {
     if (!id || !objectUrl || !projectImages) return;
-    setAiBusy(true);
     setError(null);
-    try {
-      const withBoxes = projectImages.filter((img) => img.boxes.length > 0).slice(0, MAX_AI_ASSIST_EXAMPLES);
-      if (withBoxes.length < MIN_AI_ASSIST_EXAMPLES) {
-        setError(`Annotate at least ${MIN_AI_ASSIST_EXAMPLES} images manually first so AI Assist has examples to learn from.`);
-        return;
+
+    if (boxes.length > 0) {
+      setAiBusy(true);
+      try {
+        const examples = aiBatchExamples ?? (await gatherExamples());
+        if (!examples) return;
+        if (!aiBatchExamples) setAiBatchExamples(examples);
+        const currentBoxes = boxes.map(({ x, y, w, h, class_id }) => ({ x, y, w, h, class_id }));
+        await runAiAssist(examples, currentBoxes);
+      } finally {
+        setAiBusy(false);
       }
-      const examples = await Promise.all(
-        withBoxes.map(async (img) => {
-          const blob = await api.fetchProjectImageBlob(id, img.image_id);
-          const image_b64 = await downscaleToBase64Jpeg(blob, undefined, undefined, true);
-          return { image_b64, boxes: img.boxes };
-        })
-      );
+      return;
+    }
+
+    setAiBusy(true);
+    try {
+      const examples = await gatherExamples();
+      if (!examples) return;
       setAiBatchExamples(examples);
       setAiBatchActive(true);
       aiAssistedFrameRef.current = null; // let the batch-mode effect pick up the current frame
@@ -188,8 +270,10 @@ export function AnnotatePage() {
   }
 
   const annotatedCount = projectImages?.filter((img) => img.boxes.length > 0).length ?? 0;
+  // Not gated on aiBatchActive: once a frame has boxes, this same button
+  // switches to "Improve suggestion" and re-clicking it should stay usable.
   const aiAssistDisabled =
-    busy || aiBusy || !objectUrl || !projectImages || annotatedCount < MIN_AI_ASSIST_EXAMPLES || aiBatchActive;
+    busy || aiBusy || !objectUrl || !projectImages || annotatedCount < MIN_AI_ASSIST_EXAMPLES;
 
   return (
     <div className="page">
@@ -229,7 +313,7 @@ export function AnnotatePage() {
         {IS_REMOTE && (
           <button
             className="btn-secondary"
-            onClick={onAiAssistStart}
+            onClick={onAiAssistClick}
             disabled={aiAssistDisabled}
             title={
               projectImages && annotatedCount < MIN_AI_ASSIST_EXAMPLES
@@ -238,7 +322,7 @@ export function AnnotatePage() {
             }
           >
             {aiBusy ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-            {aiBatchActive ? "AI Assist (active)" : "AI Assist"}
+            {boxes.length > 0 ? "Improve suggestion" : aiBatchActive ? "AI Assist (active)" : "AI Assist"}
           </button>
         )}
         <button className="btn-secondary" onClick={onSkip} disabled={busy}>

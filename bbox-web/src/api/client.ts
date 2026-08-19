@@ -235,12 +235,14 @@ export async function fetchProjectImageBlob(projectId: string, imageId: string):
 export async function requestAiAssist(
   classes: { class_id: number; name: string }[],
   examples: { image_b64: string; boxes: ImageBox[] }[],
-  targetImageB64: string
+  targetImageB64: string,
+  currentBoxes?: Annotation[]
 ): Promise<AiAssistResult> {
   const { data } = await client.post("/ai-assist", {
     classes,
     examples,
     target_image_b64: targetImageB64,
+    current_boxes: currentBoxes && currentBoxes.length > 0 ? currentBoxes : undefined,
   });
   return data;
 }
@@ -248,6 +250,15 @@ export async function requestAiAssist(
 export async function getWallet(): Promise<WalletInfo> {
   const { data } = await client.get("/wallet");
   return data;
+}
+
+// Validation-loop signal: how many AI-suggested boxes on a committed frame
+// were kept as-is vs. edited vs. deleted. Fire-and-forget from the caller.
+export async function submitAiAssistFeedback(
+  projectId: string,
+  counts: { suggested: number; accepted: number; edited: number; deleted: number }
+) {
+  await client.post("/ai-assist/feedback", { project_id: projectId, ...counts });
 }
 
 export async function initiateTopup(pkg: string): Promise<{ checkout_url: string }> {
