@@ -28,8 +28,8 @@ export function WalletPage() {
     setBusyPackage(packageId);
     setError(null);
     try {
-      const { bill_url } = await api.initiateTopup(packageId);
-      window.location.href = bill_url;
+      const { checkout_url } = await api.initiateTopup(packageId);
+      window.location.href = checkout_url;
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Failed to start checkout.");
       setBusyPackage(null);
@@ -42,9 +42,13 @@ export function WalletPage() {
         <h2>AI-assist tokens</h2>
       </header>
 
+      {status === "success" && (
+        <p className="muted">Payment received — your balance will update once it's confirmed (usually within seconds).</p>
+      )}
       {status === "processing" && (
         <p className="muted">Payment processing — your balance will update once it's confirmed.</p>
       )}
+      {status === "cancelled" && <p className="muted">Checkout cancelled — no charge was made.</p>}
 
       {wallet?.welcome_bonus_granted && (
         <p className="wallet-welcome-banner">

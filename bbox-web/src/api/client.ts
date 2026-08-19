@@ -250,7 +250,7 @@ export async function getWallet(): Promise<WalletInfo> {
   return data;
 }
 
-export async function initiateTopup(pkg: string): Promise<{ bill_url: string }> {
+export async function initiateTopup(pkg: string): Promise<{ checkout_url: string }> {
   const { data } = await client.post("/wallet/topup", { package: pkg });
   return data;
 }
