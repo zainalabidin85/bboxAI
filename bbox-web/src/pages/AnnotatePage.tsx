@@ -86,9 +86,11 @@ export function AnnotatePage() {
   // Bumps on a clean accept, resets on any edit/delete; a frame with no AI
   // suggestion at all (fully manual) leaves it untouched either way — see
   // reportAiAssistValidation, which already computes accepted/edited/deleted
-  // for the validation loop and just feeds the same numbers here.
+  // for the validation loop and just feeds the same numbers here. Not shown
+  // as a persistent badge — pops transiently off the AI Assist button itself
+  // (comboPop), same pattern as the token coin's floating +N/-N.
   const [aiCombo, setAiCombo] = useState(0);
-  const [comboBumpKey, setComboBumpKey] = useState(0);
+  const [comboPop, setComboPop] = useState<{ value: number; key: number } | null>(null);
   const { setBalance } = useWallet();
 
   // Pre-existing annotated images in the project, fetched once — used both to
@@ -222,8 +224,11 @@ export function AnnotatePage() {
       else edited++;
     }
 
-    setAiCombo((c) => (edited === 0 && deleted === 0 ? c + 1 : 0));
-    setComboBumpKey(Date.now());
+    const nextCombo = edited === 0 && deleted === 0 ? aiCombo + 1 : 0;
+    setAiCombo(nextCombo);
+    if (nextCombo >= 2) {
+      setComboPop({ value: nextCombo, key: Date.now() });
+    }
 
     // Best-effort — a failed feedback post shouldn't affect the actual commit.
     api
@@ -390,7 +395,7 @@ export function AnnotatePage() {
       <div className="annotate-actions">
         {IS_REMOTE && (
           <button
-            className="btn-secondary"
+            className="btn-secondary ai-assist-btn"
             onClick={onAiAssistClick}
             disabled={aiAssistDisabled}
             title={
@@ -401,6 +406,12 @@ export function AnnotatePage() {
           >
             {aiBusy ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
             {boxes.length > 0 ? "Improve suggestion" : aiBatchActive ? "AI Assist (active)" : "AI Assist"}
+            {comboPop && (
+              <span key={comboPop.key} className="combo-float" onAnimationEnd={() => setComboPop(null)}>
+                <Flame size={12} />
+                {comboPop.value}x
+              </span>
+            )}
           </button>
         )}
         <button className="btn-secondary" onClick={onSkip} disabled={busy}>
@@ -411,12 +422,6 @@ export function AnnotatePage() {
           <Check size={16} />
           {index + 1 < frames.length ? "Save & next" : "Save & finish"}
         </button>
-        {IS_REMOTE && aiCombo >= 2 && (
-          <span key={comboBumpKey} className="ai-combo-badge">
-            <Flame size={14} />
-            {aiCombo}x combo
-          </span>
-        )}
       </div>
 
       {IS_REMOTE && aiStatus && (
