@@ -361,6 +361,7 @@ export function AnnotatePage() {
           classes={project.classes}
           boxes={boxes}
           onBoxesChange={setBoxes}
+          processing={IS_REMOTE && aiBusy}
         />
       ) : (
         <p className="muted" style={{ display: "flex", alignItems: "center", gap: 6 }}>

@@ -41,6 +41,10 @@ interface Props {
   classes: BboxClass[];
   boxes: Annotation[];
   onBoxesChange: (boxes: Annotation[]) => void;
+  // Blurs the canvas and shows a scanning overlay while true — purely a
+  // "Claude is looking at this image" visual cue for AI Assist, not tied to
+  // any other loading state.
+  processing?: boolean;
 }
 
 function handlePositions(x: number, y: number, w: number, h: number): Record<HandleKey, { x: number; y: number }> {
@@ -51,7 +55,7 @@ function handlePositions(x: number, y: number, w: number, h: number): Record<Han
   };
 }
 
-export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange }: Props) {
+export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange, processing = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [size, setSize] = useState({ width: MAX_WIDTH, height: MAX_WIDTH });
@@ -281,7 +285,7 @@ export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange }: Props) {
   }
 
   return (
-    <div className="bbox-canvas-wrap">
+    <div className={"bbox-canvas-wrap" + (processing ? " bbox-canvas-wrap--processing" : "")}>
       <canvas
         ref={canvasRef}
         tabIndex={0}
@@ -291,6 +295,11 @@ export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange }: Props) {
         onPointerUp={onPointerUp}
         onKeyDown={onKeyDown}
       />
+      {processing && (
+        <div className="bbox-canvas-scan" aria-hidden="true">
+          <div className="bbox-canvas-scan-line" />
+        </div>
+      )}
       <div className="canvas-toolbar">
         <button className="btn-secondary" onClick={undo} disabled={boxes.length === 0}>
           <Undo2 size={16} />
