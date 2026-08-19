@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useWallet } from "../contexts/WalletContext";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
-const TWEEN_DURATION_MS = 500;
+const TWEEN_DURATION_MS = 1100;
 
 export function NavBar() {
   const { displayName, logout } = useAuth();

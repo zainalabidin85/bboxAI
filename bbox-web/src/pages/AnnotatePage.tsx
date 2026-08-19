@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, ChevronLeft, Check, Loader2, SkipForward, Sparkles } from "lucide-react";
+import { AlertCircle, ChevronLeft, Check, Flame, Loader2, SkipForward, Sparkles } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { Annotation, ImageBox, PendingFrame, ProjectImage, Project } from "../api/types";
@@ -82,6 +82,13 @@ export function AnnotatePage() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Consecutive frames whose AI suggestion was committed fully unedited.
+  // Bumps on a clean accept, resets on any edit/delete; a frame with no AI
+  // suggestion at all (fully manual) leaves it untouched either way — see
+  // reportAiAssistValidation, which already computes accepted/edited/deleted
+  // for the validation loop and just feeds the same numbers here.
+  const [aiCombo, setAiCombo] = useState(0);
+  const [comboBumpKey, setComboBumpKey] = useState(0);
   const { setBalance } = useWallet();
 
   // Pre-existing annotated images in the project, fetched once — used both to
@@ -214,6 +221,9 @@ export function AnnotatePage() {
       if (unchanged) accepted++;
       else edited++;
     }
+
+    setAiCombo((c) => (edited === 0 && deleted === 0 ? c + 1 : 0));
+    setComboBumpKey(Date.now());
 
     // Best-effort — a failed feedback post shouldn't affect the actual commit.
     api
@@ -401,6 +411,12 @@ export function AnnotatePage() {
           <Check size={16} />
           {index + 1 < frames.length ? "Save & next" : "Save & finish"}
         </button>
+        {IS_REMOTE && aiCombo >= 2 && (
+          <span key={comboBumpKey} className="ai-combo-badge">
+            <Flame size={14} />
+            {aiCombo}x combo
+          </span>
+        )}
       </div>
 
       {IS_REMOTE && aiStatus && (
