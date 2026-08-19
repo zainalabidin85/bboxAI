@@ -29,6 +29,40 @@ type TaggedAnnotation = Annotation & { _aiId?: string };
 
 const AI_MATCH_EPSILON = 0.001; // normalized-coordinate tolerance for "unedited"
 
+// Staged status text shown while an AI-assist call is in flight — the real
+// call is a single opaque request/response, so these don't reflect literal
+// backend steps, just give the user something concrete to read during the
+// few-second wait instead of a bare spinner.
+const AI_PROGRESS_STAGES = [
+  "Reading target image…",
+  "Comparing with your annotated examples…",
+  "Asking Claude for suggestions…",
+  "Refining coordinates…",
+];
+
+function summarizeAiResult(before: Annotation[] | undefined, after: Annotation[]): string {
+  if (!before) return `Suggested ${after.length} box${after.length === 1 ? "" : "es"}.`;
+  if (before.length === after.length) {
+    let changed = 0;
+    for (let i = 0; i < before.length; i++) {
+      const b = before[i], a = after[i];
+      const same =
+        Math.abs(a.x - b.x) < AI_MATCH_EPSILON &&
+        Math.abs(a.y - b.y) < AI_MATCH_EPSILON &&
+        Math.abs(a.w - b.w) < AI_MATCH_EPSILON &&
+        Math.abs(a.h - b.h) < AI_MATCH_EPSILON &&
+        a.class_id === b.class_id;
+      if (!same) changed++;
+    }
+    if (changed === 0) return "No change — suggestion already looked accurate.";
+    return `Adjusted ${changed} box${changed === 1 ? "" : "es"}.`;
+  }
+  const delta = after.length - before.length;
+  return delta > 0
+    ? `Added ${delta} box${delta === 1 ? "" : "es"}.`
+    : `Removed ${-delta} box${-delta === 1 ? "" : "es"}.`;
+}
+
 export function AnnotatePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -46,6 +80,7 @@ export function AnnotatePage() {
   const aiSnapshotRef = useRef<Record<string, Annotation>>({});
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiStatus, setAiStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { setBalance } = useWallet();
 
@@ -99,11 +134,25 @@ export function AnnotatePage() {
     });
     setBoxes([]);
     aiSnapshotRef.current = {};
+    setAiStatus(null);
     return () => {
       cancelled = true;
       if (revoked) URL.revokeObjectURL(revoked);
     };
   }, [id, batchId, currentFrame]);
+
+  // Cycle a status line through while an AI-assist call is in flight, so the
+  // wait shows visible progress instead of a bare spinner (see AI_PROGRESS_STAGES).
+  useEffect(() => {
+    if (!aiBusy) return;
+    let i = 0;
+    setAiStatus(AI_PROGRESS_STAGES[0]);
+    const timer = setInterval(() => {
+      i = (i + 1) % AI_PROGRESS_STAGES.length;
+      setAiStatus(AI_PROGRESS_STAGES[i]);
+    }, 1400);
+    return () => clearInterval(timer);
+  }, [aiBusy]);
 
   // Batch-mode auto-assist: whenever a new frame's image becomes available
   // while a batch is active, AI-assist it automatically (once per frame).
@@ -210,8 +259,10 @@ export function AnnotatePage() {
       aiSnapshotRef.current = snapshot;
       setBoxes(tagged);
       setBalance(result.tokens_remaining); // nav badge reflects the spend immediately, no extra fetch
+      setAiStatus(summarizeAiResult(currentBoxes, result.boxes));
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "AI Assist failed.");
+      setAiStatus(null);
       setAiBatchActive(false); // e.g. out of tokens — fall back to manual for the rest of the batch
     } finally {
       setAiBusy(false);
@@ -350,6 +401,13 @@ export function AnnotatePage() {
           {index + 1 < frames.length ? "Save & next" : "Save & finish"}
         </button>
       </div>
+
+      {IS_REMOTE && aiStatus && (
+        <p className="muted" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+          {aiBusy ? <Loader2 size={14} className="spin" /> : <Check size={14} />}
+          {aiStatus}
+        </p>
+      )}
     </div>
   );
 }
