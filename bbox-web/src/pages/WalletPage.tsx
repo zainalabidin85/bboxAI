@@ -5,6 +5,17 @@ import * as api from "../api/client";
 import type { WalletInfo } from "../api/types";
 import { useWallet } from "../contexts/WalletContext";
 
+// A "tier ladder" of tile colors — cool blue for the smallest package,
+// warming to gold/red for the biggest, instead of every tier reusing the
+// same flat accent blue.
+const TIER_GRADIENTS = [
+  "linear-gradient(135deg, #30d158, #00c7be)",
+  "linear-gradient(135deg, #af52de, #bf5af2)",
+  "linear-gradient(135deg, #bf5af2, #ff375f)",
+  "linear-gradient(135deg, #ff9f0a, #ff6300)",
+  "linear-gradient(135deg, #ffd60a, #ff375f)",
+];
+
 export function WalletPage() {
   const [params] = useSearchParams();
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
@@ -76,11 +87,10 @@ export function WalletPage() {
       )}
 
       {wallet ? (
-        <div className="card wallet-balance">
-          <Coins size={20} />
-          <span>
-            <strong>{wallet.balance}</strong> tokens
-          </span>
+        <div className="wallet-hero">
+          <Coins size={22} />
+          <strong>{wallet.balance}</strong>
+          <span>tokens available</span>
         </div>
       ) : (
         <p className="muted" style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -128,20 +138,32 @@ export function WalletPage() {
       )}
 
       {wallet && (
-        <div className="wallet-packages">
-          {Object.entries(wallet.packages).map(([packageId, pkg]) => (
-            <button
-              key={packageId}
-              className="btn-secondary"
-              onClick={() => onBuy(packageId)}
-              disabled={busyPackage !== null || !canBuy}
-              title={!canBuy ? "Agree to the Terms & Conditions above first" : undefined}
-            >
-              {busyPackage === packageId && <Loader2 size={16} className="spin" />}
-              {pkg.label}
-            </button>
-          ))}
-        </div>
+        <>
+          <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Buy tokens</p>
+          <div className="ios-list">
+            {Object.entries(wallet.packages).map(([packageId, pkg], i) => (
+              <button
+                key={packageId}
+                className="ios-list-row ios-list-row--button"
+                onClick={() => onBuy(packageId)}
+                disabled={busyPackage !== null || !canBuy}
+                title={!canBuy ? "Agree to the Terms & Conditions above first" : undefined}
+              >
+                <span className="ios-list-row-icon" style={{ background: TIER_GRADIENTS[i % TIER_GRADIENTS.length] }}>
+                  <Coins size={16} strokeWidth={2.25} />
+                </span>
+                <span className="ios-list-row-body">
+                  <span className="ios-list-row-title">{pkg.label}</span>
+                </span>
+                {busyPackage === packageId ? (
+                  <Loader2 size={16} className="spin" />
+                ) : (
+                  <span className="ios-list-row-buy">Buy</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

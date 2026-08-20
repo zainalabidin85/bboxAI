@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   Download,
   FileText,
+  Loader2,
   Square,
   XCircle,
   Zap,
@@ -142,8 +143,10 @@ export function TrainPage() {
       </header>
 
       {status?.state !== "running" && (
+        <>
+          {IS_REMOTE && <p className="ios-section-caption">Setup</p>}
         <div className="card">
-          <h3>Configuration</h3>
+          {!IS_REMOTE && <h3>Configuration</h3>}
           <label>
             Base model
             <select value={baseModel} onChange={(e) => setBaseModel(e.target.value)}>
@@ -166,11 +169,15 @@ export function TrainPage() {
             />
           </label>
           <label>Image size</label>
-          <div className="chip-row">
+          <div className={IS_REMOTE ? "segmented-control" : "chip-row"}>
             {IMGSZ_OPTIONS.map((sz) => (
               <button
                 key={sz}
-                className={`chip chip-choice ${imgsz === sz ? "chip-selected" : ""}`}
+                className={
+                  IS_REMOTE
+                    ? `segmented-control-option ${imgsz === sz ? "segmented-control-option--selected" : ""}`
+                    : `chip chip-choice ${imgsz === sz ? "chip-selected" : ""}`
+                }
                 onClick={() => setImgsz(sz)}
                 type="button"
               >
@@ -192,6 +199,7 @@ export function TrainPage() {
             <p className="muted">Need at least 10 labeled boxes (have {stats?.total_boxes ?? 0}).</p>
           )}
         </div>
+        </>
       )}
 
       {status && status.state === "running" && (
@@ -238,32 +246,61 @@ export function TrainPage() {
               <MetricChip label="Recall" value={status.recall} />
             </div>
           )}
-          {status.state === "done" && (
-            <div className="header-actions">
-              {IS_REMOTE ? (
-                <>
-                  <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
-                    <FileText size={16} />
-                    Download free report
-                  </button>
-                  {reportStatus?.unlocked ? (
-                    <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
-                      <FileText size={16} />
-                      Download detailed report
-                    </button>
-                  ) : (
-                    <button className="btn-secondary" onClick={onUnlockReport} disabled={unlocking || !reportStatus}>
-                      <FileText size={16} />
-                      {unlocking ? "Unlocking…" : `Unlock detailed report (${reportStatus?.cost ?? 20} tokens)`}
-                    </button>
-                  )}
-                </>
+          {status.state === "done" && IS_REMOTE && (
+            <div className="ios-list">
+              <button className="ios-list-row ios-list-row--button" onClick={() => id && api.downloadReport(id)}>
+                <span className="ios-list-row-icon" style={{ background: "linear-gradient(135deg, #30d158, #00c7be)" }}>
+                  <FileText size={16} strokeWidth={2.25} />
+                </span>
+                <span className="ios-list-row-body">
+                  <span className="ios-list-row-title">Free report</span>
+                </span>
+                <Download size={16} className="ios-list-row-chevron" />
+              </button>
+              {reportStatus?.unlocked ? (
+                <button className="ios-list-row ios-list-row--button" onClick={() => id && api.downloadReport(id)}>
+                  <span className="ios-list-row-icon" style={{ background: "linear-gradient(135deg, #af52de, #bf5af2)" }}>
+                    <FileText size={16} strokeWidth={2.25} />
+                  </span>
+                  <span className="ios-list-row-body">
+                    <span className="ios-list-row-title">Detailed report</span>
+                  </span>
+                  <Download size={16} className="ios-list-row-chevron" />
+                </button>
               ) : (
-                <button className="btn-secondary" onClick={() => id && api.downloadReport(id, "free")}>
-                  <FileText size={16} />
-                  Download report
+                <button className="ios-list-row ios-list-row--button" onClick={onUnlockReport} disabled={unlocking || !reportStatus}>
+                  <span className="ios-list-row-icon" style={{ background: "linear-gradient(135deg, #af52de, #bf5af2)" }}>
+                    <FileText size={16} strokeWidth={2.25} />
+                  </span>
+                  <span className="ios-list-row-body">
+                    <span className="ios-list-row-title">Detailed report</span>
+                    <span className="ios-list-row-subtitle">Per-epoch metrics, per-class breakdown, hyperparameters</span>
+                  </span>
+                  {unlocking ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : (
+                    <span className="ios-list-row-buy">{reportStatus?.cost ?? 20} tok</span>
+                  )}
                 </button>
               )}
+              <button className="ios-list-row ios-list-row--button" onClick={() => id && api.downloadModel(id)}>
+                <span className="ios-list-row-icon" style={{ background: "linear-gradient(135deg, #ff9f0a, #ff6300)" }}>
+                  <Download size={16} strokeWidth={2.25} />
+                </span>
+                <span className="ios-list-row-body">
+                  <span className="ios-list-row-title">Model weights</span>
+                  <span className="ios-list-row-subtitle">best.pt</span>
+                </span>
+                <Download size={16} className="ios-list-row-chevron" />
+              </button>
+            </div>
+          )}
+          {status.state === "done" && !IS_REMOTE && (
+            <div className="header-actions">
+              <button className="btn-secondary" onClick={() => id && api.downloadReport(id, "free")}>
+                <FileText size={16} />
+                Download report
+              </button>
               <button className="btn-secondary" onClick={() => id && api.downloadModel(id)}>
                 <Download size={16} />
                 Download model
@@ -275,8 +312,9 @@ export function TrainPage() {
 
       {status?.state === "done" && id && <TestModelCard projectId={id} />}
 
+      {IS_REMOTE && <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Metrics</p>}
       <div className="card">
-        <h3>Live metrics</h3>
+        {!IS_REMOTE && <h3>Live metrics</h3>}
         <MetricsChart data={metrics} />
       </div>
     </div>

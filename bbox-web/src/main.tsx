@@ -9,8 +9,18 @@ import "./index.css";
 // every packaged build (see install.sh / build.ps1 / deb build.sh, all of
 // which set it), but `npm run dev`/a bare `vite build` with no matching
 // .env file would otherwise leave the tab title blank.
+const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
+
 if (!document.title || document.title === "%VITE_APP_TITLE%") {
-  document.title = import.meta.env.VITE_REMOTE === "true" ? "bboxAI-Remote" : "bboxAI-Desktop";
+  document.title = IS_REMOTE ? "bboxAI-Remote" : "bboxAI-Desktop";
+}
+
+// bboxai-remote gets an iOS-Settings-style theme; the desktop build never
+// loads this file at all (dead-code-eliminated at build time since
+// VITE_REMOTE is a static build-time constant), so desktop UI is untouched.
+if (IS_REMOTE) {
+  document.documentElement.classList.add("theme-remote");
+  import("./theme-remote.css");
 }
 
 createRoot(document.getElementById("root")!).render(

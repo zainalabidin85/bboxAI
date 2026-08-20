@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { AlertCircle, Loader2, LogIn, Scan } from "lucide-react";
+import { AlertCircle, Loader2, LogIn, Lock, Scan } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -28,6 +28,57 @@ export function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (IS_REMOTE) {
+    return (
+      <div className="lock-screen">
+        <div className="lock-screen-glow" />
+
+        <form
+          className={`lock-screen-panel${shake ? " shake" : ""}`}
+          onSubmit={onSubmit}
+          onAnimationEnd={() => setShake(false)}
+        >
+          <div className={`lock-screen-face-id${loading ? " lock-screen-face-id--busy" : ""}`}>
+            <Scan size={26} strokeWidth={1.75} />
+          </div>
+          <p className="lock-screen-title">bboxAI Remote</p>
+          <p className="lock-screen-subtitle">Enter your account to unlock</p>
+
+          <input
+            className="lock-screen-input"
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+            autoFocus
+          />
+          <input
+            className="lock-screen-input"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+
+          {error && (
+            <p className="error">
+              <AlertCircle />
+              {error}
+            </p>
+          )}
+
+          <button className="lock-screen-unlock" type="submit" disabled={loading}>
+            {loading ? <Loader2 size={16} className="spin" /> : <Lock size={16} />}
+            {loading ? "Unlocking…" : "Unlock"}
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (

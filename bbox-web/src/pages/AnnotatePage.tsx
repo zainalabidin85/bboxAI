@@ -417,9 +417,22 @@ export function AnnotatePage() {
 
       <header className="page-header">
         <h2>
-          Annotate frame <span className="mono">{index + 1} / {frames.length}</span>
+          {IS_REMOTE ? "Annotate" : (
+            <>
+              Annotate frame <span className="mono">{index + 1} / {frames.length}</span>
+            </>
+          )}
         </h2>
       </header>
+
+      {IS_REMOTE && (
+        <div className="frame-progress">
+          <div className="frame-progress-bar">
+            <div className="frame-progress-fill" style={{ width: `${((index + 1) / frames.length) * 100}%` }} />
+          </div>
+          <span className="frame-progress-label mono">{index + 1} / {frames.length}</span>
+        </div>
+      )}
 
       {project && objectUrl ? (
         <BBoxCanvas
@@ -443,7 +456,7 @@ export function AnnotatePage() {
         </p>
       )}
 
-      <div className="annotate-actions">
+      <div className={IS_REMOTE ? "annotate-actions ios-toolbar" : "annotate-actions"}>
         {IS_REMOTE && (
           <button
             className="btn-secondary ai-assist-btn"

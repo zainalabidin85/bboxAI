@@ -1,8 +1,31 @@
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
-import { FolderOpen, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import * as api from "../api/client";
 import type { Project } from "../api/types";
+
+const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
+
+// iOS Settings/Reminders-style per-row icon tinting — each project gets a
+// distinct color from the system palette (hashed off its id) instead of
+// every row reusing the same flat accent blue.
+const TILE_GRADIENTS = [
+  "linear-gradient(135deg, #ff453a, #ff2d55)",
+  "linear-gradient(135deg, #ff9f0a, #ff6300)",
+  "linear-gradient(135deg, #ffd60a, #ff9f0a)",
+  "linear-gradient(135deg, #30d158, #00c7be)",
+  "linear-gradient(135deg, #bf5af2, #ff375f)",
+  "linear-gradient(135deg, #af52de, #ff2d55)",
+  "linear-gradient(135deg, #ff375f, #ff9f0a)",
+  "linear-gradient(135deg, #d158e0, #af52de)",
+  "linear-gradient(135deg, #ff6300, #ffd60a)",
+];
+
+function tileGradient(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return TILE_GRADIENTS[hash % TILE_GRADIENTS.length];
+}
 
 export function ProjectsPage() {
   const navigate = useNavigate();
@@ -91,12 +114,41 @@ export function ProjectsPage() {
       )}
 
       {loading ? (
-        <p className="muted">Loading…</p>
+        <div className="page-spinner">
+          <Loader2 className="spin" />
+          <span>Loading projects…</span>
+        </div>
       ) : projects.length === 0 ? (
         <div className="empty-state card">
           <FolderOpen />
           <h3>No projects yet</h3>
           <p className="muted">Create your first project to start annotating images.</p>
+        </div>
+      ) : IS_REMOTE ? (
+        <div className="ios-list">
+          {projects.map((p) => (
+            <Link className="ios-list-row" to={`/projects/${p.id}`} key={p.id}>
+              <span className="ios-list-row-icon" style={{ background: tileGradient(p.id) }}>
+                <Folder size={16} strokeWidth={2.25} />
+              </span>
+              <span className="ios-list-row-body">
+                <span className="ios-list-row-title">{p.name}</span>
+                <span className="ios-list-row-subtitle">
+                  {p.classes.length} class{p.classes.length === 1 ? "" : "es"}
+                  {p.classes.length > 0 && " · " + p.classes.slice(0, 4).map((c) => c.name).join(", ")}
+                </span>
+              </span>
+              <button
+                className="ios-list-row-delete"
+                onClick={(e) => onDelete(e, p.id, p.name)}
+                title="Delete project"
+                aria-label={`Delete project ${p.name}`}
+              >
+                <Trash2 size={15} />
+              </button>
+              <ChevronRight size={16} className="ios-list-row-chevron" />
+            </Link>
+          ))}
         </div>
       ) : (
         <div className="card-grid">

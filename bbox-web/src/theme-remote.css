@@ -1,0 +1,692 @@
+/* ── bboxai-remote theme: "iOS Settings / Control Center" ─────────────────
+   Loaded only when VITE_REMOTE=true (see main.tsx), scoped entirely under
+   `.theme-remote` on <html> so it can never leak into the desktop build —
+   same components/markup as desktop, this file only overrides look. */
+
+.theme-remote {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", "Inter", sans-serif;
+
+  --color-primary: #af52de;
+  --color-primary-hover: #9138c2;
+  --color-primary-light: rgba(175, 82, 222, 0.12);
+  --color-on-primary: #ffffff;
+
+  --color-accent: #34c759;
+  --color-accent-light: rgba(52, 199, 89, 0.14);
+  --color-warning: #ff9500;
+  --color-warning-light: rgba(255, 149, 0, 0.14);
+  --color-danger: #ff3b30;
+  --color-danger-hover: #d70015;
+  --color-danger-light: rgba(255, 59, 48, 0.12);
+
+  --color-bg: #f2f2f7;
+  --color-surface: rgba(255, 255, 255, 0.78);
+  --color-surface-hover: rgba(120, 120, 128, 0.08);
+  --color-border: rgba(60, 60, 67, 0.13);
+  --color-text: #1c1c1e;
+  --color-text-muted: #6e6e73;
+  --color-text-faint: #a1a1a6;
+
+  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.16);
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 999px;
+
+  --transition-base: 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .theme-remote {
+    --color-primary: #bf5af2;
+    --color-primary-hover: #d18af5;
+    --color-primary-light: rgba(191, 90, 242, 0.2);
+
+    --color-accent: #30d158;
+    --color-accent-light: rgba(48, 209, 88, 0.16);
+    --color-warning: #ff9f0a;
+    --color-warning-light: rgba(255, 159, 10, 0.16);
+    --color-danger: #ff453a;
+    --color-danger-hover: #ff6961;
+    --color-danger-light: rgba(255, 69, 58, 0.16);
+
+    --color-primary-rgb: 191, 90, 242;
+    --color-bg: #050506;
+    --color-surface: rgba(32, 32, 35, 0.72);
+    --color-surface-hover: rgba(140, 140, 150, 0.14);
+    --color-border: rgba(255, 255, 255, 0.09);
+    --color-text: #f2f2f7;
+    --color-text-muted: #98989f;
+    --color-text-faint: #636366;
+
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.6);
+  }
+}
+
+.theme-remote {
+  --color-primary-rgb: 175, 82, 222;
+}
+
+.theme-remote body {
+  letter-spacing: -0.01em;
+  background:
+    radial-gradient(1200px 650px at 10% -12%, rgba(191, 90, 242, 0.22), transparent 55%),
+    radial-gradient(1000px 600px at 105% -5%, rgba(255, 55, 149, 0.16), transparent 55%),
+    radial-gradient(1000px 800px at 50% 118%, rgba(255, 55, 95, 0.13), transparent 62%),
+    var(--color-bg);
+  background-attachment: fixed;
+}
+
+@media (prefers-color-scheme: light) {
+  .theme-remote body {
+    background:
+      radial-gradient(1100px 600px at 12% -8%, rgba(175, 82, 222, 0.08), transparent 55%),
+      radial-gradient(900px 550px at 100% 0%, rgba(255, 55, 149, 0.06), transparent 55%),
+      radial-gradient(900px 700px at 50% 115%, rgba(255, 45, 85, 0.05), transparent 60%),
+      var(--color-bg);
+    background-attachment: fixed;
+  }
+}
+
+.theme-remote h1,
+.theme-remote h2,
+.theme-remote h3 {
+  letter-spacing: -0.02em;
+}
+
+/* Large-title pattern: page headings read like an iOS "large title" —
+   bold, oversized, tight tracking. */
+.theme-remote .page-header h2 {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.theme-remote h4 {
+  letter-spacing: -0.01em;
+  font-weight: 700;
+  color: var(--color-text-faint);
+}
+
+/* ── Frosted nav bar ────────────────────────────────────────────────────── */
+
+.theme-remote .navbar {
+  background: var(--color-surface);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.theme-remote .navbar-brand-mark {
+  border-radius: 8px;
+  background: linear-gradient(135deg, #af52de, #ff375f);
+}
+
+.theme-remote .navbar-token-badge {
+  border-radius: var(--radius-full);
+}
+
+/* ── Pill buttons ───────────────────────────────────────────────────────── */
+
+.theme-remote .btn-primary,
+.theme-remote .btn-secondary,
+.theme-remote .btn-danger {
+  border-radius: var(--radius-full);
+  padding: 11px 20px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.theme-remote .btn-primary {
+  background: linear-gradient(135deg, var(--color-primary-hover), var(--color-primary) 55%, #ff375f);
+  box-shadow: 0 6px 20px rgba(var(--color-primary-rgb), 0.35);
+}
+
+.theme-remote .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 8px 24px rgba(var(--color-primary-rgb), 0.45);
+}
+
+.theme-remote .btn-primary:active:not(:disabled),
+.theme-remote .btn-secondary:active:not(:disabled),
+.theme-remote .btn-danger:active:not(:disabled) {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+.theme-remote .btn-secondary {
+  background: var(--color-surface-hover);
+  border-color: transparent;
+}
+
+.theme-remote .btn-ghost {
+  border-radius: var(--radius-full);
+}
+
+/* ── Grouped-list cards ─────────────────────────────────────────────────── */
+
+.theme-remote .card {
+  background: var(--color-surface);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border: none;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+@media (prefers-color-scheme: light) {
+  .theme-remote .card {
+    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+}
+
+.theme-remote .project-card:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+  border-color: transparent;
+  background: var(--color-surface-hover);
+}
+
+.theme-remote .stat {
+  background: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-md);
+}
+
+/* ── Inputs: iOS grouped-field style (filled, no border) ───────────────── */
+
+.theme-remote input,
+.theme-remote select,
+.theme-remote textarea {
+  background: var(--color-surface-hover);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.theme-remote input:hover,
+.theme-remote select:hover,
+.theme-remote textarea:hover {
+  border-color: transparent;
+}
+
+.theme-remote input:focus,
+.theme-remote select:focus,
+.theme-remote textarea:focus {
+  background: var(--color-surface);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-light);
+}
+
+/* ── Chips / badges / toggles ───────────────────────────────────────────── */
+
+.theme-remote .chip,
+.theme-remote .chip-choice,
+.theme-remote .status-badge,
+.theme-remote .class-option {
+  border-radius: var(--radius-full);
+}
+
+.theme-remote .chip-choice {
+  border-color: var(--color-border);
+}
+
+.theme-remote .class-option {
+  border-width: 1px;
+  border-color: var(--color-border);
+}
+
+.theme-remote progress {
+  height: 8px;
+}
+
+/* ── Auth screen ────────────────────────────────────────────────────────── */
+
+.theme-remote .auth-page {
+  background:
+    radial-gradient(1200px 600px at 20% -10%, var(--color-primary-light), transparent 60%),
+    var(--color-bg);
+}
+
+.theme-remote .auth-brand {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+/* ── Modal sheet: translucent, rounded like an iOS action sheet ──────────── */
+
+.theme-remote .modal-sheet {
+  background: var(--color-surface);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: none;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.theme-remote .modal-backdrop {
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(4px);
+}
+
+/* ── Page transitions ───────────────────────────────────────────────────── */
+
+.theme-remote .page-fade {
+  animation: theme-remote-page-fade 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes theme-remote-page-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.theme-remote .page-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 40vh;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.theme-remote .page-spinner svg {
+  width: 26px;
+  height: 26px;
+  color: var(--color-primary);
+}
+
+/* ── Lock screen (login page) ──────────────────────────────────────────── */
+
+.theme-remote .lock-screen {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-7) var(--space-4) var(--space-6);
+  overflow: hidden;
+  color: #ffffff;
+  background:
+    radial-gradient(1100px 700px at 15% -10%, rgba(191, 90, 242, 0.5), transparent 60%),
+    radial-gradient(900px 600px at 100% 10%, rgba(255, 55, 149, 0.32), transparent 55%),
+    radial-gradient(1000px 800px at 50% 120%, rgba(255, 45, 85, 0.25), transparent 60%),
+    linear-gradient(160deg, #100a1a 0%, #26102e 45%, #0a060d 100%);
+}
+
+.theme-remote .lock-screen-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  backdrop-filter: blur(60px);
+  -webkit-backdrop-filter: blur(60px);
+}
+
+.theme-remote .lock-screen-panel {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.theme-remote .lock-screen-face-id {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.theme-remote .lock-screen-face-id--busy {
+  animation: lock-face-id-pulse 1s ease-in-out infinite;
+}
+
+@keyframes lock-face-id-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(191, 90, 242, 0.5); }
+  50% { box-shadow: 0 0 0 10px rgba(191, 90, 242, 0); }
+}
+
+.theme-remote .lock-screen-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.theme-remote .lock-screen-subtitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: -6px;
+}
+
+.theme-remote .lock-screen-input {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 15px;
+  text-align: center;
+}
+
+.theme-remote .lock-screen-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.theme-remote .lock-screen-input:focus {
+  outline: none;
+  border-color: rgba(191, 90, 242, 0.8);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 0 4px rgba(191, 90, 242, 0.25);
+}
+
+.theme-remote .lock-screen-panel .error {
+  width: 100%;
+  background: rgba(255, 69, 58, 0.16);
+  border-color: rgba(255, 69, 58, 0.32);
+  color: #ff6961;
+}
+
+.theme-remote .lock-screen-unlock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
+  padding: 13px 16px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, #af52de, #ff375f);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.theme-remote .lock-screen-unlock:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.theme-remote .lock-screen-unlock:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── iOS grouped list (Settings-app style rows) ────────────────────────── */
+
+.theme-remote .ios-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-surface);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  margin-bottom: var(--space-4);
+}
+
+@media (prefers-color-scheme: light) {
+  .theme-remote .ios-list {
+    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+}
+
+.theme-remote .ios-list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 13px var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--transition-fast);
+}
+
+.theme-remote .ios-list-row:last-child {
+  border-bottom: none;
+}
+
+.theme-remote .ios-list-row:hover {
+  background: var(--color-surface-hover);
+  text-decoration: none;
+}
+
+.theme-remote .ios-list-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.theme-remote .ios-list-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.theme-remote .ios-list-row-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-remote .ios-list-row-subtitle {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-remote .ios-list-row-chevron {
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+.theme-remote .ios-list-row-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.theme-remote .ios-list-row-delete:hover {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.theme-remote .ios-list-row--button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.theme-remote .ios-list-row--button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.theme-remote .ios-list-row-buy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.theme-remote .wallet-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-6) var(--space-5);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
+  color: #fff;
+  text-align: center;
+  background:
+    radial-gradient(400px 200px at 30% -20%, rgba(255, 255, 255, 0.25), transparent 60%),
+    linear-gradient(135deg, #ff9500, #ff2d55);
+  box-shadow: var(--shadow-md);
+}
+
+.theme-remote .wallet-hero strong {
+  font-size: 44px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.theme-remote .wallet-hero span {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.theme-remote .segmented-control {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-hover);
+}
+
+.theme-remote .segmented-control-option {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.theme-remote .segmented-control-option--selected {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.theme-remote .ios-section-caption {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+/* ── Annotate page: frame progress + floating toolbar ──────────────────── */
+
+.theme-remote .frame-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.theme-remote .frame-progress-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-hover);
+  overflow: hidden;
+}
+
+.theme-remote .frame-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  transition: width var(--transition-base);
+}
+
+.theme-remote .frame-progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.theme-remote .ios-toolbar {
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Bounding-box canvas frame ──────────────────────────────────────────── */
+
+.theme-remote .bbox-canvas-wrap canvas {
+  border-radius: var(--radius-lg);
+}
+
+.theme-remote .bbox-canvas-scan {
+  border-radius: var(--radius-lg);
+  animation: theme-remote-scan-glow 1.6s ease-in-out infinite;
+}
+
+.theme-remote .bbox-canvas-scan-line {
+  background: linear-gradient(180deg, transparent, rgba(191, 90, 242, 0.4), transparent);
+}
+
+@keyframes theme-remote-scan-glow {
+  0%, 100% { box-shadow: inset 0 0 0 2px rgba(191, 90, 242, 0.25); }
+  50% { box-shadow: inset 0 0 0 2px rgba(191, 90, 242, 0.75); }
+}

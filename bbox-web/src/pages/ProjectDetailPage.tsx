@@ -4,6 +4,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { PendingBatch, Project, Stats } from "../api/types";
 
+const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
+
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -72,7 +74,14 @@ export function ProjectDetailPage() {
     navigate("/projects");
   }
 
-  if (!project || !stats) return <p className="muted">Loading…</p>;
+  if (!project || !stats) {
+    return (
+      <div className="page-spinner">
+        <Loader2 className="spin" />
+        <span>Loading project…</span>
+      </div>
+    );
+  }
 
   const canTrain = stats.total_boxes >= 10;
 
@@ -99,7 +108,8 @@ export function ProjectDetailPage() {
         ))}
       </div>
 
-      <div className="stat-row" style={{ marginTop: "var(--space-4)" }}>
+      {IS_REMOTE && <p className="ios-section-caption" style={{ marginTop: "var(--space-4)" }}>Dataset</p>}
+      <div className="stat-row" style={{ marginTop: IS_REMOTE ? 0 : "var(--space-4)" }}>
         <div className="stat">
           <strong>{stats.total}</strong>
           <span>Images</span>
@@ -115,38 +125,42 @@ export function ProjectDetailPage() {
       </div>
 
       {batches.length > 0 && (
-        <div className="card">
-          <h3>Resume annotating</h3>
-          <p className="muted">
-            Unfinished video batches — pick up where you (or another session) left off.
-          </p>
-          {batches.map((b) => (
-            <div className="header-actions" key={b.batch_id}>
-              <span style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-                <Film size={16} />
-                <span className="mono">{b.batch_id}</span>
-                <span className="muted">
-                  — {b.frame_count} frame{b.frame_count === 1 ? "" : "s"} left
+        <>
+          {IS_REMOTE && <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Resume annotating</p>}
+          <div className="card">
+            {!IS_REMOTE && <h3>Resume annotating</h3>}
+            <p className="muted">
+              Unfinished video batches — pick up where you (or another session) left off.
+            </p>
+            {batches.map((b) => (
+              <div className="header-actions" key={b.batch_id}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                  <Film size={16} />
+                  <span className="mono">{b.batch_id}</span>
+                  <span className="muted">
+                    — {b.frame_count} frame{b.frame_count === 1 ? "" : "s"} left
+                  </span>
                 </span>
-              </span>
-              <button className="btn-secondary" onClick={() => onResume(b)}>
-                Continue
-              </button>
-              <button
-                className="btn-ghost"
-                onClick={() => onDiscardBatch(b.batch_id)}
-                title="Discard batch"
-                aria-label={`Discard batch ${b.batch_id}`}
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          ))}
-        </div>
+                <button className="btn-secondary" onClick={() => onResume(b)}>
+                  Continue
+                </button>
+                <button
+                  className="btn-ghost"
+                  onClick={() => onDiscardBatch(b.batch_id)}
+                  title="Discard batch"
+                  aria-label={`Discard batch ${b.batch_id}`}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
+      {IS_REMOTE && <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Add data</p>}
       <div className="card">
-        <h3>Upload video</h3>
+        {!IS_REMOTE && <h3>Upload video</h3>}
         <p className="muted">The video is split into frames for you to annotate.</p>
         <label>
           Frames per second to extract
@@ -179,6 +193,7 @@ export function ProjectDetailPage() {
         )}
       </div>
 
+      {IS_REMOTE && <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Training</p>}
       <button
         className="btn-primary"
         onClick={() => navigate(`/projects/${id}/train`)}
