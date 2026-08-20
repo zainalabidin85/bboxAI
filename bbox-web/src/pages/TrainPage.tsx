@@ -258,10 +258,16 @@ export function TrainPage() {
                   )}
                 </>
               ) : (
-                <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
-                  <FileText size={16} />
-                  Download report
-                </button>
+                <>
+                  <button className="btn-secondary" onClick={() => id && api.downloadReport(id, "free")}>
+                    <FileText size={16} />
+                    Download free report
+                  </button>
+                  <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
+                    <FileText size={16} />
+                    Download full report
+                  </button>
+                </>
               )}
               <button className="btn-secondary" onClick={() => id && api.downloadModel(id)}>
                 <Download size={16} />

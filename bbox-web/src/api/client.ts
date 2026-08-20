@@ -145,8 +145,14 @@ async function downloadFile(url: string, suggestedName: string) {
   URL.revokeObjectURL(objectUrl);
 }
 
-export function downloadReport(projectId: string) {
-  return downloadFile(`/projects/${projectId}/report`, `${projectId}_report.pdf`);
+// tier is optional and only meaningful on the local build talking directly
+// to bbox-api — bbox-relay's report route (remote build) ignores any tier
+// in the query string and decides for itself based on unlock status, so
+// passing it there would be a no-op, not a bypass.
+export function downloadReport(projectId: string, tier?: "free" | "paid") {
+  const suffix = tier ? `?tier=${tier}` : "";
+  const filename = tier === "free" ? `${projectId}_report_free.pdf` : `${projectId}_report.pdf`;
+  return downloadFile(`/projects/${projectId}/report${suffix}`, filename);
 }
 
 // Detailed-report paywall — remote build only. The local build's
