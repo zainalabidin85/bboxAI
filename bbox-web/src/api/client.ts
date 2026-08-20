@@ -261,8 +261,8 @@ export async function submitAiAssistFeedback(
   await client.post("/ai-assist/feedback", { project_id: projectId, ...counts });
 }
 
-export async function initiateTopup(pkg: string): Promise<{ checkout_url: string }> {
-  const { data } = await client.post("/wallet/topup", { package: pkg });
+export async function initiateTopup(pkg: string, termsAccepted: boolean): Promise<{ checkout_url: string }> {
+  const { data } = await client.post("/wallet/topup", { package: pkg, terms_accepted: termsAccepted });
   return data;
 }
 

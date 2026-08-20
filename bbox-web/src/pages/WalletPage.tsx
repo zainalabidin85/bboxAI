@@ -10,6 +10,7 @@ export function WalletPage() {
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [busyPackage, setBusyPackage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [termsChecked, setTermsChecked] = useState(false);
   const { setBalance: setNavBalance } = useWallet();
 
   const status = params.get("status");
@@ -39,13 +40,19 @@ export function WalletPage() {
     setBusyPackage(packageId);
     setError(null);
     try {
-      const { checkout_url } = await api.initiateTopup(packageId);
+      const { checkout_url } = await api.initiateTopup(packageId, wallet?.terms_accepted || termsChecked);
       window.location.href = checkout_url;
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Failed to start checkout.");
       setBusyPackage(null);
     }
   }
+
+  // Gate purchases behind ticking the checkbox until the server has a
+  // recorded acceptance for this account — checked once ever, not on every
+  // visit (see bbox-relay's wallet.has_accepted_terms).
+  const needsTermsGate = wallet != null && !wallet.terms_accepted;
+  const canBuy = !needsTermsGate || termsChecked;
 
   return (
     <div className="page">
@@ -90,13 +97,45 @@ export function WalletPage() {
       )}
 
       {wallet && (
+        <div className="card wallet-terms">
+          {needsTermsGate ? (
+            <>
+              <ul className="wallet-terms-list">
+                {wallet.terms_text.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+              <label className="wallet-terms-checkbox">
+                <input
+                  type="checkbox"
+                  checked={termsChecked}
+                  onChange={(e) => setTermsChecked(e.target.checked)}
+                />
+                I have read and agree to the Terms &amp; Conditions above.
+              </label>
+            </>
+          ) : (
+            <details>
+              <summary className="muted">Terms &amp; Conditions (agreed)</summary>
+              <ul className="wallet-terms-list">
+                {wallet.terms_text.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
+      {wallet && (
         <div className="wallet-packages">
           {Object.entries(wallet.packages).map(([packageId, pkg]) => (
             <button
               key={packageId}
               className="btn-secondary"
               onClick={() => onBuy(packageId)}
-              disabled={busyPackage !== null}
+              disabled={busyPackage !== null || !canBuy}
+              title={!canBuy ? "Agree to the Terms & Conditions above first" : undefined}
             >
               {busyPackage === packageId && <Loader2 size={16} className="spin" />}
               {pkg.label}

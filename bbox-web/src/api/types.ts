@@ -95,6 +95,9 @@ export interface WalletInfo {
   balance: number;
   packages: Record<string, TokenPackage>;
   welcome_bonus_granted: boolean;
+  terms_accepted: boolean;
+  terms_version: string;
+  terms_text: string[];
 }
 
 export interface AiAssistResult {

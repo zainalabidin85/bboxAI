@@ -365,6 +365,43 @@ button {
   margin-top: var(--space-4);
 }
 
+.wallet-terms {
+  margin-top: var(--space-4);
+}
+
+.wallet-terms-list {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.wallet-terms-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.wallet-terms-checkbox input {
+  margin-top: 3px;
+}
+
+.wallet-terms summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.wallet-terms details[open] summary {
+  margin-bottom: var(--space-3);
+}
+
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 
 .btn-primary,
