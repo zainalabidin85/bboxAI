@@ -302,14 +302,15 @@ def training_metrics(
 @router.get("/{project_id}/report")
 def download_report(
     project_id: str,
-    tier: str = "paid",
+    tier: str = "free",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Self-hosted/desktop callers never pass tier — they always get "paid"
-    # (the full report), free, since bbox-api itself is payment-unaware.
-    # Only bbox-relay's report-unlock flow (private repo) ever requests
-    # tier=free, for a bboxai-remote user who hasn't unlocked this run yet.
+    # Self-hosted/desktop callers never pass tier — they default to "free"
+    # (the brief, watermarked report). The full detailed report is exclusive
+    # to bboxai-remote's paid unlock (private repo), which always passes
+    # tier explicitly (free or paid, based on real unlock status) — this
+    # default only matters for a caller that omits it, i.e. desktop.
     if tier not in ("free", "paid"):
         raise HTTPException(status_code=422, detail="tier must be 'free' or 'paid'.")
     project = _load_project(project_id, db)
