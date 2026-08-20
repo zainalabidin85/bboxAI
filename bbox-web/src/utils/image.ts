@@ -47,17 +47,61 @@ function drawCoordinateGrid(ctx: CanvasRenderingContext2D, width: number, height
   ctx.restore();
 }
 
+export interface BoxOverlay {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label: string;
+  color: string;
+}
+
+// Draws normalized-coordinate boxes (e.g. the current/AI-suggested boxes on a
+// frame) directly onto the image, in a bright outline distinct from the red
+// grid, with a filled label above each. Used so a refine call actually shows
+// Claude where its own prior suggestion landed relative to the real objects,
+// instead of only describing those boxes as JSON coordinates in the prompt
+// text — a JSON-only description gives Claude nothing to visually compare
+// against when checking whether a box is correctly placed.
+function drawBoxesOverlay(ctx: CanvasRenderingContext2D, boxes: BoxOverlay[], width: number, height: number) {
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.font = "bold 12px sans-serif";
+  ctx.textBaseline = "alphabetic";
+
+  for (const b of boxes) {
+    const x = b.x * width;
+    const y = b.y * height;
+    const w = b.w * width;
+    const h = b.h * height;
+
+    ctx.strokeStyle = b.color;
+    ctx.strokeRect(x, y, w, h);
+
+    const textWidth = ctx.measureText(b.label).width;
+    ctx.fillStyle = b.color;
+    ctx.fillRect(x, Math.max(0, y - 16), textWidth + 8, 16);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(b.label, x + 4, Math.max(12, y - 4));
+  }
+  ctx.restore();
+}
+
 // Downscales an image (from a Blob or an already-loaded <img> src URL) to at
 // most `maxDim` px on its long side and returns raw base64 JPEG data (no
 // "data:image/jpeg;base64," prefix) — used to keep AI-assist request payloads
 // small before sending them to bbox-relay. `overlayGrid` draws a labeled 10%
 // coordinate grid on top, to help a vision model localize boxes more
 // precisely (see ai_assist.py's prompt, which explains the grid to the model).
+// `boxes`, when given, are drawn on top of the grid so Claude can visually
+// compare a suggestion's current boxes against the real objects (used for
+// "Improve suggestion" refine calls).
 export async function downscaleToBase64Jpeg(
   source: Blob | string,
   maxDim = 1024,
   quality = 0.85,
-  overlayGrid = false
+  overlayGrid = false,
+  boxes?: BoxOverlay[]
 ): Promise<string> {
   const isBlob = typeof source !== "string";
   const url = isBlob ? URL.createObjectURL(source) : source;
@@ -80,6 +124,7 @@ export async function downscaleToBase64Jpeg(
     if (!ctx) throw new Error("Canvas not supported.");
     ctx.drawImage(img, 0, 0, width, height);
     if (overlayGrid) drawCoordinateGrid(ctx, width, height);
+    if (boxes && boxes.length > 0) drawBoxesOverlay(ctx, boxes, width, height);
 
     const dataUrl = canvas.toDataURL("image/jpeg", quality);
     return dataUrl.split(",")[1] ?? "";

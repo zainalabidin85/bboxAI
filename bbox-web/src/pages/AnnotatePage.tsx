@@ -3,8 +3,8 @@ import { AlertCircle, ChevronLeft, Check, Flame, Loader2, SkipForward, Sparkles 
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { Annotation, ImageBox, PendingFrame, ProjectImage, Project } from "../api/types";
-import { BBoxCanvas } from "../components/BBoxCanvas";
-import { downscaleToBase64Jpeg } from "../utils/image";
+import { BBoxCanvas, classColor } from "../components/BBoxCanvas";
+import { downscaleToBase64Jpeg, type BoxOverlay } from "../utils/image";
 import { useWallet } from "../contexts/WalletContext";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
@@ -262,8 +262,20 @@ export function AnnotatePage() {
     setAiBusy(true);
     setError(null);
     try {
-      const target_image_b64 = await downscaleToBase64Jpeg(objectUrl, undefined, undefined, true);
       const classes = project.classes.map((c) => ({ class_id: c.id, name: c.name }));
+      // On a refine call, draw the current boxes onto the image itself (not
+      // just describe them as JSON in the prompt) so Claude can visually
+      // compare where they landed against the real objects — see the comment
+      // on drawBoxesOverlay in utils/image.ts for why this matters.
+      const boxesOverlay: BoxOverlay[] | undefined = currentBoxes?.map((b) => ({
+        x: b.x,
+        y: b.y,
+        w: b.w,
+        h: b.h,
+        label: `current: ${classes.find((c) => c.class_id === b.class_id)?.name ?? "?"}`,
+        color: classColor(b.class_id),
+      }));
+      const target_image_b64 = await downscaleToBase64Jpeg(objectUrl, undefined, undefined, true, boxesOverlay);
       const result = await api.requestAiAssist(classes, examples, target_image_b64, currentBoxes);
       const snapshot: Record<string, Annotation> = {};
       const tagged: TaggedAnnotation[] = result.boxes.map(({ x, y, w, h, class_id }) => {
