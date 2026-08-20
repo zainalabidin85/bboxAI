@@ -1,11 +1,14 @@
 import csv
+import io
 import os
 from datetime import datetime
 
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
+from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import (
     HRFlowable, Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
@@ -22,7 +25,9 @@ _RED    = colors.HexColor("#D32F2F")
 
 # "free" gets pages 1, 3, 4 (watermarked); "paid" gets all 4, no watermark —
 # page 2 (per-epoch table, per-class breakdown, hyperparameters) only exists
-# in the paid tier at all, it isn't just hidden. See routers/training.py's
+# in the paid tier at all, it isn't just hidden. Page 3's training-curve
+# chart and confusion matrix are likewise paid-only — free page 3 shows just
+# the headline metrics table. See routers/training.py's
 # download_report and bbox-relay's report-unlock flow (private repo) for how
 # a bboxai-remote user actually gets to the paid tier — self-hosted/desktop
 # bbox-api always calls generate() with the default "paid" tier and has no
@@ -57,24 +62,41 @@ def _fit_image(path: str, max_w: float, max_h: float) -> Image | None:
     return Image(path, width=iw * scale, height=ih * scale)
 
 
-def _watermark(tier: str):
-    """Returns a SimpleDocTemplate onPage callback that stamps a diagonal
-    watermark on every page — used for the free tier only. None (no
-    callback) for paid, which never needs to say "this isn't the real
-    version" on itself."""
-    if tier != "free":
-        return None
+def _watermark_page():
+    """Builds a single-page in-memory PDF containing just the diagonal
+    watermark mark, to be merged on top of each real page afterwards. Doing
+    it as a SimpleDocTemplate onPage callback (the old approach) draws the
+    mark *before* that page's flowable content, so it ends up sitting behind
+    the text/figures instead of in front of them — a plain top-of-stack
+    canvas draw can't out-order content added later in the same page's
+    build. Merging a separate overlay page on top after the fact is the
+    reliable way to get it in front."""
+    buf = io.BytesIO()
+    c = pdfcanvas.Canvas(buf, pagesize=A4)
+    c.saveState()
+    c.setFont("Helvetica-Bold", 46)
+    c.setFillColor(colors.Color(0.6, 0.6, 0.6, alpha=0.28))
+    c.translate(_W / 2, _H / 2)
+    c.rotate(38)
+    c.drawCentredString(0, 0, "bboxAI — FREE REPORT")
+    c.restoreState()
+    c.save()
+    buf.seek(0)
+    return PdfReader(buf).pages[0]
 
-    def _draw(canvas, doc):
-        canvas.saveState()
-        canvas.setFont("Helvetica-Bold", 46)
-        canvas.setFillColor(colors.Color(0.6, 0.6, 0.6, alpha=0.28))
-        canvas.translate(_W / 2, _H / 2)
-        canvas.rotate(38)
-        canvas.drawCentredString(0, 0, "bboxAI — FREE REPORT")
-        canvas.restoreState()
 
-    return _draw
+def _stamp_watermark(path: str) -> None:
+    """Overlays the watermark mark on top of every already-rendered page of
+    the PDF at `path`, in place — used for the free tier only, after
+    doc.build() has finished laying out the real content."""
+    watermark = _watermark_page()
+    reader = PdfReader(path)
+    writer = PdfWriter()
+    for page in reader.pages:
+        page.merge_page(watermark)
+        writer.add_page(page)
+    with open(path, "wb") as f:
+        writer.write(f)
 
 
 def _epoch_rows(run_dir: str) -> list[dict]:
@@ -145,8 +167,11 @@ def _per_class_metrics(project_id: str, classes: list[dict]) -> list[dict] | Non
 
 def generate(project: dict, stats: dict, training_status: dict, tier: str = "paid") -> str:
     """Generate a PDF training report. Returns the file path. tier="free"
-    produces pages 1/3/4 only, watermarked; tier="paid" produces all 4,
-    unwatermarked, with page 2's per-epoch/per-class/hyperparameter detail."""
+    produces pages 1/3/4 only, watermarked, with page 3 stripped down to the
+    headline metrics table (no training-curve chart, no confusion matrix);
+    tier="paid" produces all 4, unwatermarked, with page 2's per-epoch/
+    per-class/hyperparameter detail plus page 3's chart and confusion
+    matrix."""
     if tier not in _TIERS:
         raise ValueError(f"Unknown report tier {tier!r}")
 
@@ -377,7 +402,7 @@ def generate(project: dict, stats: dict, training_status: dict, tier: str = "pai
                 ]))
                 story.append(epoch_table)
 
-        # ── Page 3: headline metrics + training curves + confusion matrix ───────
+        # ── Page 3: headline metrics (+ training curves/confusion matrix, paid only) ──
         story.append(PageBreak())
         story.append(Paragraph("Model Performance", section_style))
 
@@ -406,13 +431,14 @@ def generate(project: dict, stats: dict, training_status: dict, tier: str = "pai
         ]))
         story.append(metrics_table)
 
-        results_img = _fit_image(os.path.join(run_dir, "results.png"), usable_w, 9*cm)
-        if results_img:
-            story.append(KeepTogether([Paragraph("Training Curves", section_style), results_img]))
+        if tier == "paid":
+            results_img = _fit_image(os.path.join(run_dir, "results.png"), usable_w, 9*cm)
+            if results_img:
+                story.append(KeepTogether([Paragraph("Training Curves", section_style), results_img]))
 
-        cm_img = _fit_image(os.path.join(run_dir, "confusion_matrix.png"), usable_w, 12*cm)
-        if cm_img:
-            story.append(KeepTogether([Paragraph("Confusion Matrix", section_style), cm_img]))
+            cm_img = _fit_image(os.path.join(run_dir, "confusion_matrix.png"), usable_w, 12*cm)
+            if cm_img:
+                story.append(KeepTogether([Paragraph("Confusion Matrix", section_style), cm_img]))
 
         # ── Page 4: validation samples (ground truth vs. predictions) ───────────
         labels_img = _fit_image(os.path.join(run_dir, "val_batch0_labels.jpg"), usable_w, 14*cm)
@@ -443,8 +469,9 @@ def generate(project: dict, stats: dict, training_status: dict, tier: str = "pai
         ParagraphStyle("footer", parent=body_style, textColor=_GREY, fontSize=9),
     ))
 
-    watermark_cb = _watermark(tier)
-    doc.build(story, onFirstPage=watermark_cb or (lambda c, d: None), onLaterPages=watermark_cb or (lambda c, d: None))
+    doc.build(story)
+    if tier == "free":
+        _stamp_watermark(path)
     return path
 
 

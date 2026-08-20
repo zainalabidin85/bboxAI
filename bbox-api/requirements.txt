@@ -6,6 +6,7 @@ python-dotenv==1.0.1
 ultralytics==8.3.253
 opencv-python-headless==4.10.0.84
 reportlab==4.2.5
+pypdf==4.3.1
 sqlalchemy==2.0.31
 psycopg2-binary==2.9.9
 python-jose[cryptography]==3.3.0
