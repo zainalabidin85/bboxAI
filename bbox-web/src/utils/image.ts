@@ -1,6 +1,14 @@
 // Draws a normalized-coordinate reference grid (10% steps, labeled) over an
 // image so a vision model has visual anchor points to estimate bbox
 // coordinates against, instead of guessing pixel positions unaided.
+//
+// Labels sit at every interior intersection (not just the top/left edges) so
+// an object anywhere in the frame has a labeled anchor within ~10% of its
+// own position, instead of forcing the model to count/interpolate several
+// unlabeled gridlines inward from a distant edge label — that long-distance
+// extrapolation was producing a consistent directional offset in AI-assist
+// suggestions for objects away from the top-left corner (see ai_assist.py's
+// grid_note, which this grid backs).
 function drawCoordinateGrid(ctx: CanvasRenderingContext2D, width: number, height: number) {
   ctx.save();
   ctx.strokeStyle = "rgba(255, 0, 0, 0.45)";
@@ -10,7 +18,6 @@ function drawCoordinateGrid(ctx: CanvasRenderingContext2D, width: number, height
   for (let i = 1; i < 10; i++) {
     const x = Math.round((i / 10) * width);
     const y = Math.round((i / 10) * height);
-    const label = (i / 10).toFixed(1);
 
     ctx.beginPath();
     ctx.moveTo(x, 0);
@@ -21,13 +28,21 @@ function drawCoordinateGrid(ctx: CanvasRenderingContext2D, width: number, height
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
     ctx.stroke();
+  }
 
-    ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-    ctx.fillRect(x + 1, 0, 22, 12);
-    ctx.fillRect(0, y + 1, 22, 12);
-    ctx.fillStyle = "rgba(255, 255, 0, 0.95)";
-    ctx.fillText(label, x + 2, 10);
-    ctx.fillText(label, 2, y + 10);
+  ctx.textBaseline = "top";
+  for (let i = 1; i < 10; i++) {
+    for (let j = 1; j < 10; j++) {
+      const x = Math.round((i / 10) * width);
+      const y = Math.round((j / 10) * height);
+      const label = `${(i / 10).toFixed(1)},${(j / 10).toFixed(1)}`;
+      const textWidth = ctx.measureText(label).width;
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+      ctx.fillRect(x + 2, y + 2, textWidth + 4, 12);
+      ctx.fillStyle = "rgba(255, 255, 0, 0.95)";
+      ctx.fillText(label, x + 4, y + 3);
+    }
   }
   ctx.restore();
 }
