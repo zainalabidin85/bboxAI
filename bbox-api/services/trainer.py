@@ -303,7 +303,12 @@ def _generate_report(project_id: str, status: dict):
                 for c in project["classes"]
             ],
         }
-        rpt.generate(project, stats, status)
+        # Both tiers generated once here and cached to disk — the paid tier's
+        # per-class breakdown re-runs validation (a few seconds), so it isn't
+        # worth repeating on every download request. See services/report.py
+        # for what each tier actually contains.
+        rpt.generate(project, stats, status, tier="paid")
+        rpt.generate(project, stats, status, tier="free")
     except Exception:
         pass  # report generation failure must never crash the training thread
 

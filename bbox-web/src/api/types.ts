@@ -100,6 +100,18 @@ export interface WalletInfo {
   terms_text: string[];
 }
 
+export interface ReportUnlockStatus {
+  training_done: boolean;
+  unlocked: boolean;
+  cost: number;
+}
+
+export interface ReportUnlockResult {
+  unlocked: boolean;
+  already_unlocked: boolean;
+  tokens_remaining: number;
+}
+
 export interface AiAssistResult {
   boxes: ImageBox[];
   tokens_remaining: number;

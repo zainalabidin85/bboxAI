@@ -8,6 +8,8 @@ import type {
   PendingFrame,
   Project,
   ProjectImage,
+  ReportUnlockResult,
+  ReportUnlockStatus,
   Stats,
   TrainingStatus,
   VideoUploadResult,
@@ -145,6 +147,21 @@ async function downloadFile(url: string, suggestedName: string) {
 
 export function downloadReport(projectId: string) {
   return downloadFile(`/projects/${projectId}/report`, `${projectId}_report.pdf`);
+}
+
+// Detailed-report paywall — remote build only. The local build's
+// downloadReport() above always gets the full report for free (bbox-api is
+// payment-unaware); on the remote build the same URL is transparently
+// tier-gated by bbox-relay based on unlock status, see main.py's
+// GET /projects/{id}/report there.
+export async function getReportUnlockStatus(projectId: string): Promise<ReportUnlockStatus> {
+  const { data } = await client.get(`/projects/${projectId}/report/status`);
+  return data;
+}
+
+export async function unlockReport(projectId: string): Promise<ReportUnlockResult> {
+  const { data } = await client.post(`/projects/${projectId}/report/unlock`);
+  return data;
 }
 
 export function downloadModel(projectId: string) {

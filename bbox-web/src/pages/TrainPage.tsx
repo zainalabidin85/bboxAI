@@ -12,9 +12,11 @@ import {
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import * as api from "../api/client";
-import type { EpochMetric, Stats, TrainingStatus } from "../api/types";
+import type { EpochMetric, ReportUnlockStatus, Stats, TrainingStatus } from "../api/types";
 import { MetricsChart } from "../components/MetricsChart";
+import { useWallet } from "../contexts/WalletContext";
 
+const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
 const IMGSZ_OPTIONS = [320, 640, 1280];
 const POLL_INTERVAL_MS = 8000;
 
@@ -28,7 +30,10 @@ export function TrainPage() {
   const [status, setStatus] = useState<TrainingStatus | null>(null);
   const [metrics, setMetrics] = useState<EpochMetric[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [reportStatus, setReportStatus] = useState<ReportUnlockStatus | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { setBalance: setNavBalance } = useWallet();
 
   async function loadStatic() {
     if (!id) return;
@@ -70,6 +75,30 @@ export function TrainPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Detailed-report unlock status — remote build only, and only once
+  // training has actually finished (bbox-relay's status check needs a
+  // completed run's finished_at to key an unlock against).
+  useEffect(() => {
+    if (!IS_REMOTE || !id || status?.state !== "done") return;
+    api.getReportUnlockStatus(id).then(setReportStatus).catch(() => setReportStatus(null));
+  }, [id, status?.state]);
+
+  async function onUnlockReport() {
+    if (!id) return;
+    setUnlocking(true);
+    setError(null);
+    try {
+      const result = await api.unlockReport(id);
+      setNavBalance(result.tokens_remaining);
+      setReportStatus((prev) => (prev ? { ...prev, unlocked: true } : prev));
+      await api.downloadReport(id); // now serves the paid tier
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Failed to unlock the detailed report.");
+    } finally {
+      setUnlocking(false);
+    }
+  }
 
   async function onStart() {
     if (!id) return;
@@ -210,10 +239,30 @@ export function TrainPage() {
           )}
           {status.state === "done" && (
             <div className="header-actions">
-              <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
-                <FileText size={16} />
-                Download report
-              </button>
+              {IS_REMOTE ? (
+                <>
+                  <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
+                    <FileText size={16} />
+                    Download free report
+                  </button>
+                  {reportStatus?.unlocked ? (
+                    <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
+                      <FileText size={16} />
+                      Download detailed report
+                    </button>
+                  ) : (
+                    <button className="btn-secondary" onClick={onUnlockReport} disabled={unlocking || !reportStatus}>
+                      <FileText size={16} />
+                      {unlocking ? "Unlocking…" : `Unlock detailed report (${reportStatus?.cost ?? 20} tokens)`}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button className="btn-secondary" onClick={() => id && api.downloadReport(id)}>
+                  <FileText size={16} />
+                  Download report
+                </button>
+              )}
               <button className="btn-secondary" onClick={() => id && api.downloadModel(id)}>
                 <Download size={16} />
                 Download model

@@ -302,14 +302,22 @@ def training_metrics(
 @router.get("/{project_id}/report")
 def download_report(
     project_id: str,
+    tier: str = "paid",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Self-hosted/desktop callers never pass tier — they always get "paid"
+    # (the full report), free, since bbox-api itself is payment-unaware.
+    # Only bbox-relay's report-unlock flow (private repo) ever requests
+    # tier=free, for a bboxai-remote user who hasn't unlocked this run yet.
+    if tier not in ("free", "paid"):
+        raise HTTPException(status_code=422, detail="tier must be 'free' or 'paid'.")
     project = _load_project(project_id, db)
-    if not rpt.report_exists(project_id):
+    if not rpt.report_exists(project_id, tier):
         raise HTTPException(status_code=404, detail="Report not yet generated. Complete training first.")
-    filename = f"bboxai_{project['name'].replace(' ', '_')}_report.pdf"
-    return FileResponse(rpt.get_report_path(project_id), media_type="application/pdf", filename=filename)
+    suffix = "" if tier == "paid" else "_free"
+    filename = f"bboxai_{project['name'].replace(' ', '_')}_report{suffix}.pdf"
+    return FileResponse(rpt.get_report_path(project_id, tier), media_type="application/pdf", filename=filename)
 
 
 @router.get("/{project_id}/weights/download")
