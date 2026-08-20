@@ -16,7 +16,7 @@ a straight port of it:
 | | Linux (`.deb`) | Windows (`.exe`) |
 |---|---|---|
 | Database | PostgreSQL | **SQLite** (single file, no server process) |
-| Web serving | nginx, separate port from the API | **`bbox-api` serves the built UI directly**, one process, one port (`8080`) — see `WEB_DIST_PATH` in `bbox-api/config.py` / `main.py` |
+| Web serving | nginx, separate port from the API | **`bbox-api` serves the built UI directly**, one process, one port (`8321`) — see `WEB_DIST_PATH` in `bbox-api/config.py` / `main.py` |
 | Background service | systemd | **[NSSM](https://nssm.cc/)**, wraps `uvicorn` as a real Windows service |
 | App code | `/opt/bboxai-desktop` | `%ProgramFiles%\bboxai-desktop` |
 | Runtime data (db, storage, weights, venv) | `/var/lib/bboxai-desktop` | `%ProgramData%\bboxai-desktop` |
@@ -56,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 # → out\bboxai-desktop-setup-1.0.0.exe
 ```
 
-`build.ps1` bakes `VITE_API_BASE_URL=http://bboxai:8080` into the `bbox-web`
+`build.ps1` bakes `VITE_API_BASE_URL=http://bboxai:8321` into the `bbox-web`
 build (same-origin with the API, matching the single-process architecture
 above) — if you change the port `install.ps1` uses, update both.
 
@@ -78,14 +78,14 @@ On first run it will, in order:
 6. Add `127.0.0.1 bboxai` to the hosts file.
 
 Takes a few minutes (mostly step 2 — `torch`/`opencv`/`ultralytics` aren't
-small) and needs internet access throughout. When it's done: **`http://bboxai:8080`**.
+small) and needs internet access throughout. When it's done: **`http://bboxai:8321`**.
 
 ### Enabling remote access (away from home)
 
 The installer only sets up the local `bbox-api`/`bbox-web` pair — it does
 **not** register a device with the shared relay, so a freshly-registered
 account can't yet log into `https://bboxai-remote.unitani.com`. After
-registering an account through `http://bboxai:8080`, run this once
+registering an account through `http://bboxai:8321`, run this once
 (elevated):
 
 ```powershell

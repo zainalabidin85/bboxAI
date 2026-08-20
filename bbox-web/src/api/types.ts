@@ -73,6 +73,17 @@ export interface Annotation {
   class_id: number;
 }
 
+export interface TestPredictionBox extends Annotation {
+  class_name: string;
+  confidence: number;
+}
+
+export interface TestPredictionResult {
+  boxes: TestPredictionBox[];
+  image_width: number;
+  image_height: number;
+}
+
 // ── AI-assist (bboxai-remote only) ──────────────────────────────────────────
 
 export interface ImageBox extends Annotation {

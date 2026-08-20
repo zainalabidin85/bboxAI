@@ -332,3 +332,60 @@ def download_model(
         raise HTTPException(status_code=404, detail="Model not available. Complete training first.")
     filename = f"bboxai_{project['name'].replace(' ', '_')}_best.pt"
     return FileResponse(model_path, media_type="application/octet-stream", filename=filename)
+
+
+# ── Test the deployed model on an ad-hoc image ────────────────────────────────
+#
+# Lets a user sanity-check the trained model without leaving bboxAI — upload
+# any image, run the deployed best.pt on it, get back predicted boxes in the
+# same normalized {x,y,w,h,class_id} shape as everything else, for read-only
+# display (not saved anywhere, not part of the dataset).
+
+@router.post("/{project_id}/test")
+async def test_model(
+    project_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = _load_project(project_id, db)
+    model_path = os.path.join(PROJECTS_DIR, project_id, "weights", "best.pt")
+    if not os.path.exists(model_path):
+        raise HTTPException(status_code=404, detail="Model not available. Complete training first.")
+
+    content_type = file.content_type or ""
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=422, detail="File must be an image.")
+    data = await file.read()
+    if len(data) == 0:
+        raise HTTPException(status_code=422, detail="Empty file received.")
+
+    import cv2
+    import numpy as np
+    from ultralytics import YOLO
+
+    arr = np.frombuffer(data, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(status_code=422, detail="Could not decode image.")
+    img_h, img_w = img.shape[:2]
+
+    class_names = {c["id"]: c["name"] for c in project["classes"]}
+    model = YOLO(model_path)
+    result = model.predict(img, verbose=False)[0]
+
+    boxes = []
+    for (x1, y1, x2, y2), conf, cls in zip(
+        result.boxes.xyxyn.tolist(), result.boxes.conf.tolist(), result.boxes.cls.tolist()
+    ):
+        class_id = int(cls)
+        boxes.append({
+            "class_id": class_id,
+            "class_name": class_names.get(class_id, "unknown"),
+            "confidence": round(float(conf), 4),
+            "x": x1,
+            "y": y1,
+            "w": x2 - x1,
+            "h": y2 - y1,
+        })
+    return {"boxes": boxes, "image_width": img_w, "image_height": img_h}

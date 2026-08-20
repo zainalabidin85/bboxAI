@@ -8,5 +8,5 @@ Depends: python3 (>= 3.10), python3-venv, python3-pip, curl, openssl, postgresql
 Description: bboxAI desktop — local image/video annotation + YOLOv8 training
  Installs bbox-api (FastAPI backend) and a pre-built bbox-web UI as
  systemd-managed services on this machine, fronted by nginx. Local UI at
- http://bboxai:8080 once installed. Away-from-home access can be enabled
+ http://bboxai:8321 once installed. Away-from-home access can be enabled
  afterward with bboxai-enable-remote.

@@ -2,7 +2,7 @@
 # setting up bbox-agent as a Windows service (via nssm), tunneling to the
 # shared bbox-relay so https://bboxai-remote.unitani.com can reach this
 # machine. Run this AFTER installing bboxai-desktop and registering a
-# bboxAI account through the local web UI (http://bboxai:8080).
+# bboxAI account through the local web UI (http://bboxai:8321).
 #
 # Must run elevated (same as the main installer).
 param(
@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 $AgentDir  = Join-Path $AppDir "bbox-agent"
 $NssmExe   = Join-Path $AppDir "nssm.exe"
 $AgentVenv = Join-Path $DataDir "agent-venv"
-$ApiBase   = "http://localhost:8080"
+$ApiBase   = "http://localhost:8321"
 $RelayUrl  = "https://bboxai-relay.unitani.com"
 
 if (-not $Username) { $Username = Read-Host "bboxAI username" }
@@ -32,7 +32,7 @@ try {
     Invoke-RestMethod -Uri "$ApiBase/auth/login" -Method Post `
         -ContentType "application/x-www-form-urlencoded" -Body $body | Out-Null
 } catch {
-    throw "Login failed against $ApiBase -- register an account at http://bboxai:8080 first. ($($_.Exception.Message))"
+    throw "Login failed against $ApiBase -- register an account at http://bboxai:8321 first. ($($_.Exception.Message))"
 }
 Write-Host "    login OK"
 

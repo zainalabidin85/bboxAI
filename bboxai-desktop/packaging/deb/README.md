@@ -18,7 +18,7 @@ deviate.
 | | |
 |---|---|
 | Database | PostgreSQL, role/db `bboxai`, random password saved to `/var/lib/bboxai-desktop/.db_password` |
-| Web serving | nginx on port `8080`, reverse-proxying nothing — serves the pre-built static UI directly; `bbox-api` runs separately on `127.0.0.1:8000` |
+| Web serving | nginx on port `8321`, reverse-proxying nothing — serves the pre-built static UI directly; `bbox-api` runs separately on `127.0.0.1:8000` |
 | Background service | systemd (`bboxai-api.service`) |
 | Runs as | dedicated system user `bboxai` (not whoever ran `apt install`) |
 | App code (read-only) | `/opt/bboxai-desktop` |
@@ -74,7 +74,7 @@ present), write `.env` with a random `SECRET_KEY`, download the default
 `yolo11n.pt` weight, install and start the systemd service, configure nginx,
 and add `127.0.0.1 bboxai` to `/etc/hosts`.
 
-When it's done: **`http://bboxai:8080`**. Register an account, then
+When it's done: **`http://bboxai:8321`**. Register an account, then
 optionally run `sudo bboxai-enable-remote` for away-from-home access.
 
 ## Uninstalling

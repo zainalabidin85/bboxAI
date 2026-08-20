@@ -14,8 +14,9 @@ $StageDir  = Join-Path $ScriptDir "stage"
 Write-Host "==> Building bbox-web (bundled, pre-built -- no Node needed at install time)"
 Push-Location (Join-Path $SourceDir "bbox-web")
 @"
-VITE_API_BASE_URL=http://bboxai:8080
+VITE_API_BASE_URL=http://bboxai:8321
 VITE_REMOTE=false
+VITE_APP_TITLE=bboxAI-Desktop
 "@ | Out-File -Encoding ascii .env.production
 npm install --silent
 npm run build --silent

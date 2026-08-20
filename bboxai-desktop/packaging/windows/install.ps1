@@ -11,7 +11,7 @@ $NssmExe    = Join-Path $AppDir "nssm.exe"
 $VenvDir    = Join-Path $DataDir "venv"
 $StorageDir = Join-Path $DataDir "storage"
 $WeightsDir = Join-Path $DataDir "weights"
-$WebPort    = 8080
+$WebPort    = 8321
 
 Write-Host "==> Ensuring data directories exist"
 New-Item -ItemType Directory -Force -Path $DataDir, $StorageDir, $WeightsDir | Out-Null

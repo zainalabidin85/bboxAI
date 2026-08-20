@@ -19,6 +19,7 @@ cd "$SOURCE_DIR/bbox-web"
 cat > .env.production.pkgbuild <<EOF
 VITE_API_BASE_URL=http://bboxai:8000
 VITE_REMOTE=false
+VITE_APP_TITLE=bboxAI-Desktop
 EOF
 cp .env.production.pkgbuild .env.production
 npm install --silent

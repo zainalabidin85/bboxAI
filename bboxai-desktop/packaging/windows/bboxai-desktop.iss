@@ -35,7 +35,7 @@ Source: "uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "enable-remote.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\bboxAI Desktop"; Filename: "http://bboxai:8080"
+Name: "{group}\bboxAI Desktop"; Filename: "http://bboxai:8321"
 Name: "{group}\Uninstall bboxAI Desktop"; Filename: "{uninstallexe}"
 
 [Run]
@@ -43,7 +43,7 @@ Filename: "powershell.exe"; \
     Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install.ps1"" -AppDir ""{app}"" -DataDir ""{commonappdata}\bboxai-desktop"""; \
     StatusMsg: "Setting up bbox-api, downloading dependencies, and starting the service (this can take a few minutes)..."; \
     Flags: runhidden waituntilterminated
-Filename: "http://bboxai:8080"; Description: "Open bboxAI Desktop"; Flags: postinstall shellexec skipifsilent nowait
+Filename: "http://bboxai:8321"; Description: "Open bboxAI Desktop"; Flags: postinstall shellexec skipifsilent nowait
 
 [UninstallRun]
 Filename: "powershell.exe"; \

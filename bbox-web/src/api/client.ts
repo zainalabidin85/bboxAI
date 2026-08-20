@@ -11,6 +11,7 @@ import type {
   ReportUnlockResult,
   ReportUnlockStatus,
   Stats,
+  TestPredictionResult,
   TrainingStatus,
   VideoUploadResult,
   WalletInfo,
@@ -172,6 +173,15 @@ export async function unlockReport(projectId: string): Promise<ReportUnlockResul
 
 export function downloadModel(projectId: string) {
   return downloadFile(`/projects/${projectId}/weights/download`, `${projectId}_best.pt`);
+}
+
+export async function testModel(projectId: string, file: File): Promise<TestPredictionResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await client.post(`/projects/${projectId}/test`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
 }
 
 // ── Video → frames ───────────────────────────────────────────────────────────

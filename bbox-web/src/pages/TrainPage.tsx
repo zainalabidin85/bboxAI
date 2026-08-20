@@ -14,6 +14,7 @@ import { Link, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { EpochMetric, ReportUnlockStatus, Stats, TrainingStatus } from "../api/types";
 import { MetricsChart } from "../components/MetricsChart";
+import { TestModelCard } from "../components/TestModelCard";
 import { useWallet } from "../contexts/WalletContext";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
@@ -277,6 +278,8 @@ export function TrainPage() {
           )}
         </div>
       )}
+
+      {status?.state === "done" && id && <TestModelCard projectId={id} />}
 
       <div className="card">
         <h3>Live metrics</h3>

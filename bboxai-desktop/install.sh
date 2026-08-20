@@ -17,7 +17,7 @@ fi
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_DIR="$HOME/bboxai-desktop"
-WEB_PORT=8080
+WEB_PORT=8321
 API_PORT=8000
 DB_NAME=bboxai
 DB_USER=bboxai
@@ -157,6 +157,7 @@ cd "$INSTALL_DIR/bbox-web"
 cat > .env.production <<EOF
 VITE_API_BASE_URL=http://localhost:$API_PORT
 VITE_REMOTE=false
+VITE_APP_TITLE=bboxAI-Desktop
 EOF
 npm install --silent
 npm run build --silent
