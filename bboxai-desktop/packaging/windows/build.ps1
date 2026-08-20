@@ -46,4 +46,4 @@ if (-not (Test-Path $IsccPath)) {
 New-Item -ItemType Directory -Force -Path (Join-Path $ScriptDir "out") | Out-Null
 & $IsccPath (Join-Path $ScriptDir "bboxai-desktop.iss")
 
-Write-Host "==> Built: $ScriptDir\out\bboxai-desktop-setup-1.0.0.exe"
+Write-Host "==> Built: $ScriptDir\out\bboxai-desktop-setup-1.1.0.exe"
