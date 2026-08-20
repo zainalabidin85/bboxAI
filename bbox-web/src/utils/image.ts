@@ -47,42 +47,45 @@ function drawCoordinateGrid(ctx: CanvasRenderingContext2D, width: number, height
   ctx.restore();
 }
 
-export interface BoxOverlay {
+export interface DotOverlay {
   x: number;
   y: number;
-  w: number;
-  h: number;
   label: string;
   color: string;
 }
 
-// Draws normalized-coordinate boxes (e.g. the current/AI-suggested boxes on a
-// frame) directly onto the image, in a bright outline distinct from the red
-// grid, with a filled label above each. Used so a refine call actually shows
-// Claude where its own prior suggestion landed relative to the real objects,
-// instead of only describing those boxes as JSON coordinates in the prompt
-// text — a JSON-only description gives Claude nothing to visually compare
-// against when checking whether a box is correctly placed.
-function drawBoxesOverlay(ctx: CanvasRenderingContext2D, boxes: BoxOverlay[], width: number, height: number) {
+// Draws a small numbered dot at each given normalized point, with a filled
+// label beside it — used instead of the coordinate grid for the refine pass
+// (see refine_with_dots in ai_assist.py). Each dot marks a current box's
+// center; Claude is asked for a relative "which way, how far" judgment off
+// each dot rather than a fresh absolute coordinate. Three separate attempts
+// at improving absolute-coordinate reading (denser grid labels,
+// chain-of-thought, drawing the current boxes as rectangles) all failed the
+// same way on a dense multi-well tray — boxes landed roughly one cell off,
+// consistently — so the refine pass no longer uses the grid or draws boxes
+// as rectangles at all.
+function drawDotsOverlay(ctx: CanvasRenderingContext2D, dots: DotOverlay[], width: number, height: number) {
   ctx.save();
-  ctx.lineWidth = 2;
   ctx.font = "bold 12px sans-serif";
-  ctx.textBaseline = "alphabetic";
+  ctx.textBaseline = "middle";
 
-  for (const b of boxes) {
-    const x = b.x * width;
-    const y = b.y * height;
-    const w = b.w * width;
-    const h = b.h * height;
+  for (const d of dots) {
+    const x = d.x * width;
+    const y = d.y * height;
 
-    ctx.strokeStyle = b.color;
-    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = d.color;
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
-    const textWidth = ctx.measureText(b.label).width;
-    ctx.fillStyle = b.color;
-    ctx.fillRect(x, Math.max(0, y - 16), textWidth + 8, 16);
+    const textWidth = ctx.measureText(d.label).width;
+    ctx.fillStyle = d.color;
+    ctx.fillRect(x + 8, y - 9, textWidth + 6, 18);
     ctx.fillStyle = "#ffffff";
-    ctx.fillText(b.label, x + 4, Math.max(12, y - 4));
+    ctx.fillText(d.label, x + 11, y + 1);
   }
   ctx.restore();
 }
@@ -92,16 +95,16 @@ function drawBoxesOverlay(ctx: CanvasRenderingContext2D, boxes: BoxOverlay[], wi
 // "data:image/jpeg;base64," prefix) — used to keep AI-assist request payloads
 // small before sending them to bbox-relay. `overlayGrid` draws a labeled 10%
 // coordinate grid on top, to help a vision model localize boxes more
-// precisely (see ai_assist.py's prompt, which explains the grid to the model).
-// `boxes`, when given, are drawn on top of the grid so Claude can visually
-// compare a suggestion's current boxes against the real objects (used for
-// "Improve suggestion" refine calls).
+// precisely (see ai_assist.py's prompt, which explains the grid to the model)
+// — used only for the from-scratch suggestion call. `dots`, when given,
+// draws numbered reference points instead (used only for the refine call);
+// the two are never combined.
 export async function downscaleToBase64Jpeg(
   source: Blob | string,
   maxDim = 1024,
   quality = 0.85,
   overlayGrid = false,
-  boxes?: BoxOverlay[]
+  dots?: DotOverlay[]
 ): Promise<string> {
   const isBlob = typeof source !== "string";
   const url = isBlob ? URL.createObjectURL(source) : source;
@@ -124,7 +127,7 @@ export async function downscaleToBase64Jpeg(
     if (!ctx) throw new Error("Canvas not supported.");
     ctx.drawImage(img, 0, 0, width, height);
     if (overlayGrid) drawCoordinateGrid(ctx, width, height);
-    if (boxes && boxes.length > 0) drawBoxesOverlay(ctx, boxes, width, height);
+    if (dots && dots.length > 0) drawDotsOverlay(ctx, dots, width, height);
 
     const dataUrl = canvas.toDataURL("image/jpeg", quality);
     return dataUrl.split(",")[1] ?? "";

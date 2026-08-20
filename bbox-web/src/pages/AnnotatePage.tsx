@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, ChevronLeft, Check, Flame, Loader2, SkipForward, Sparkles } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
-import type { Annotation, ImageBox, PendingFrame, ProjectImage, Project } from "../api/types";
+import type { AiAssistResult, Annotation, ImageBox, PendingFrame, ProjectImage, Project } from "../api/types";
 import { BBoxCanvas, classColor } from "../components/BBoxCanvas";
-import { downscaleToBase64Jpeg, type BoxOverlay } from "../utils/image";
+import { downscaleToBase64Jpeg, type DotOverlay } from "../utils/image";
 import { useWallet } from "../contexts/WalletContext";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
@@ -37,7 +37,8 @@ const AI_PROGRESS_STAGES = [
   "Reading target image…",
   "Comparing with your annotated examples…",
   "Asking Claude for suggestions…",
-  "Refining coordinates…",
+  "Cross-checking against reference points…",
+  "Nudging boxes into place…",
 ];
 
 function summarizeAiResult(before: Annotation[] | undefined, after: Annotation[]): string {
@@ -253,40 +254,65 @@ export function AnnotatePage() {
     }
   }
 
-  // currentBoxes, when passed, is fed back to Claude as "here's what's on the
-  // image already — improve it" (see ai_assist.py's refine_note) rather than
-  // asking it to guess from scratch again. Used by the "Improve suggestion"
-  // re-click path, not the initial per-frame batch call.
+  // Builds numbered reference dots at each box's center, for the refine
+  // ("Improve suggestion" or auto-correction) call — see drawDotsOverlay in
+  // utils/image.ts and refine_with_dots in ai_assist.py. Dot N corresponds
+  // to boxes[N-1], matching the 1-based "dot" index the relay expects back.
+  function dotsForBoxes(boxes: Annotation[]): DotOverlay[] {
+    return boxes.map((b, i) => ({
+      x: b.x + b.w / 2,
+      y: b.y + b.h / 2,
+      label: String(i + 1),
+      color: classColor(b.class_id),
+    }));
+  }
+
+  async function requestBoxes(examples: AiExample[], classes: { class_id: number; name: string }[], currentBoxes?: Annotation[]) {
+    const target_image_b64 = currentBoxes
+      ? await downscaleToBase64Jpeg(objectUrl!, undefined, undefined, false, dotsForBoxes(currentBoxes))
+      : await downscaleToBase64Jpeg(objectUrl!, undefined, undefined, true);
+    return api.requestAiAssist(classes, examples, target_image_b64, currentBoxes);
+  }
+
+  // currentBoxes, when passed, means this is a refine call (the "Improve
+  // suggestion" re-click path): a single call, nudging those boxes toward
+  // the real objects via numbered dots rather than a grid (see
+  // refine_with_dots in ai_assist.py — three earlier attempts at improving
+  // absolute-coordinate reading all failed the same way on a dense tray of
+  // near-identical wells, so refine no longer asks for absolute coordinates
+  // at all).
+  //
+  // With no currentBoxes, this is a from-scratch suggestion: after it comes
+  // back, we immediately (no extra click) send it through one more refine
+  // call automatically, so what the user actually sees is already
+  // corrected — costing 2x AI_ASSIST_COST_TOKENS for the one click. If that
+  // second call fails for any reason, we fall back to the uncorrected
+  // first-pass boxes rather than losing the whole suggestion.
   async function runAiAssist(examples: AiExample[], currentBoxes?: Annotation[]) {
     if (!id || !project || !objectUrl) return;
     setAiBusy(true);
     setError(null);
     try {
       const classes = project.classes.map((c) => ({ class_id: c.id, name: c.name }));
-      // On a refine call, draw the current boxes onto the image itself (not
-      // just describe them as JSON in the prompt) so Claude can visually
-      // compare where they landed against the real objects — see the comment
-      // on drawBoxesOverlay in utils/image.ts for why this matters.
-      const boxesOverlay: BoxOverlay[] | undefined = currentBoxes?.map((b) => ({
-        x: b.x,
-        y: b.y,
-        w: b.w,
-        h: b.h,
-        label: `current: ${classes.find((c) => c.class_id === b.class_id)?.name ?? "?"}`,
-        color: classColor(b.class_id),
-      }));
-      const target_image_b64 = await downscaleToBase64Jpeg(objectUrl, undefined, undefined, true, boxesOverlay);
-      const result = await api.requestAiAssist(classes, examples, target_image_b64, currentBoxes);
-      const snapshot: Record<string, Annotation> = {};
-      const tagged: TaggedAnnotation[] = result.boxes.map(({ x, y, w, h, class_id }) => {
-        const _aiId = crypto.randomUUID();
-        snapshot[_aiId] = { x, y, w, h, class_id };
-        return { x, y, w, h, class_id, _aiId };
-      });
-      aiSnapshotRef.current = snapshot;
-      setBoxes(tagged);
-      setBalance(result.tokens_remaining); // nav badge reflects the spend immediately, no extra fetch
-      setAiStatus(summarizeAiResult(currentBoxes, result.boxes));
+
+      if (currentBoxes) {
+        const result = await requestBoxes(examples, classes, currentBoxes);
+        applyAiResult(result, currentBoxes);
+        return;
+      }
+
+      const initial = await requestBoxes(examples, classes);
+      let final = initial;
+      if (initial.boxes.length > 0) {
+        setAiStatus("Cross-checking against reference points…");
+        try {
+          final = await requestBoxes(examples, classes, initial.boxes);
+        } catch {
+          // Correction pass failed (balance, transient API error, etc.) —
+          // keep the uncorrected first-pass suggestion rather than losing it.
+        }
+      }
+      applyAiResult(final, undefined);
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "AI Assist failed.");
       setAiStatus(null);
@@ -294,6 +320,19 @@ export function AnnotatePage() {
     } finally {
       setAiBusy(false);
     }
+  }
+
+  function applyAiResult(result: AiAssistResult, before: Annotation[] | undefined) {
+    const snapshot: Record<string, Annotation> = {};
+    const tagged: TaggedAnnotation[] = result.boxes.map(({ x, y, w, h, class_id }) => {
+      const _aiId = crypto.randomUUID();
+      snapshot[_aiId] = { x, y, w, h, class_id };
+      return { x, y, w, h, class_id, _aiId };
+    });
+    aiSnapshotRef.current = snapshot;
+    setBoxes(tagged);
+    setBalance(result.tokens_remaining); // nav badge reflects the spend immediately, no extra fetch
+    setAiStatus(summarizeAiResult(before, result.boxes));
   }
 
   async function gatherExamples(): Promise<AiExample[] | null> {
