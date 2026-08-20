@@ -33,8 +33,8 @@ Linux install still uses Postgres + nginx exactly as before.
 |---|---|
 | `build.ps1` | Run on Windows. Pre-builds `bbox-web`, downloads `nssm.exe`, stages everything, and invokes Inno Setup (`ISCC.exe`) to produce the `.exe`. |
 | `bboxai-desktop.iss` | The Inno Setup script — what gets installed where, and which scripts run on install/uninstall. |
-| `install.ps1` | Runs elevated, once, right after Inno Setup copies files. Sets up Python/venv/dependencies, SQLite `.env`, the default YOLO weight, the NSSM service, and the hosts entry. Idempotent — safe to re-run (e.g. on a version upgrade). |
-| `enable-remote.ps1` | **Not run automatically** — the user runs this manually (elevated) after registering an account, same pattern as the `.deb`'s `bboxai-enable-remote`. Validates the login against the local `bbox-api`, sets up a `bbox-agent` venv, and registers/starts a `bboxai-agent` service (via NSSM) tunneling to the shared `bbox-relay`, enabling `https://bboxai-remote.unitani.com` access for that account. |
+| `install.ps1` | Runs elevated, once, right after Inno Setup copies files. Sets up Python/venv/dependencies for **both** `bbox-api` and `bbox-agent`, SQLite `.env` (including `AGENT_CREDENTIALS_PATH`), the default YOLO weight, both NSSM services (`bboxai-api` and `bboxai-agent`), and the hosts entry. `bboxai-agent` starts immediately and waits for a local account to be registered — remote access activates automatically the first time that happens, no separate step. Idempotent — safe to re-run (e.g. on a version upgrade). |
+| `enable-remote.ps1` | **Manual override only** — not needed for a normal install. Run this (elevated) if you want to force a *different* local account to become the remote-enabled one (`bbox-agent` sticks with whichever account it picked up first). Validates the login against the local `bbox-api`, writes a fresh credentials file, and restarts `bboxai-agent` to pick it up. |
 | `uninstall.ps1` | Runs elevated during uninstall. Stops/removes both services (`bboxai-api` and, if present, `bboxai-agent`), removes the hosts entry, and cleans up files `install.ps1`/`enable-remote.ps1` created at runtime that Inno Setup's own manifest doesn't know about (see "Known limitation" below). Data is **preserved** unless `-Purge` is passed. |
 
 ## Building it yourself
@@ -82,11 +82,17 @@ small) and needs internet access throughout. When it's done: **`http://bboxai:83
 
 ### Enabling remote access (away from home)
 
-The installer only sets up the local `bbox-api`/`bbox-web` pair — it does
-**not** register a device with the shared relay, so a freshly-registered
-account can't yet log into `https://bboxai-remote.unitani.com`. After
-registering an account through `http://bboxai:8321`, run this once
-(elevated):
+Automatic — no action needed. `install.ps1` sets up and starts
+`bboxai-agent` immediately, before any account exists; it waits (polling
+`agent-credentials.json`, written by `bbox-api`'s `/auth/register` on a
+successful registration) rather than requiring a password up front. Register
+an account through `http://bboxai:8321` and the same account works at
+`bboxai-remote.unitani.com` from anywhere shortly after — check
+`%ProgramData%\bboxai-desktop\agent.log` for "Tunnel connected." to confirm.
+
+Only needed manually if you want to force a *different* local account to
+become the remote-enabled one (`bbox-agent` sticks with whichever account it
+picked up first):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "C:\Program Files\bboxai-desktop\enable-remote.ps1" -AppDir "C:\Program Files\bboxai-desktop" -DataDir "C:\ProgramData\bboxai-desktop"
@@ -94,10 +100,8 @@ powershell -ExecutionPolicy Bypass -File "C:\Program Files\bboxai-desktop\enable
 
 It prompts for the bboxAI username/password (or reads `$env:BBOXAI_USERNAME`
 / `$env:BBOXAI_PASSWORD` if already set), validates the login against the
-local `bbox-api`, and registers/starts a `bboxai-agent` service tunneling to
-the shared relay. Once it reports the tunnel connected, the same account
-works at `bboxai-remote.unitani.com` from anywhere. Logs go to
-`%ProgramData%\bboxai-desktop\agent.log`.
+local `bbox-api`, writes a fresh `agent-credentials.json`, and restarts
+`bboxai-agent` to pick it up.
 
 ## Uninstalling
 
@@ -154,8 +158,16 @@ reading before re-deriving them:
   equivalent of `enable-remote.sh`/`bboxai-enable-remote`. A freshly
   registered account worked fine locally but had no way to reach
   `bboxai-remote.unitani.com`, since nothing ever told the relay which
-  device that username lived on. Fixed by bundling `bbox-agent` and adding
-  `enable-remote.ps1` (see "Enabling remote access" above).
+  device that username lived on. First fixed by bundling `bbox-agent` and
+  adding `enable-remote.ps1` as a manual post-install step — later found
+  that still left a real gap (an account created *without* someone
+  remembering to separately run that script had no relay registration at
+  all, and there was no way to tell from the account itself). Now fully
+  automatic: `install.ps1` starts `bboxai-agent` immediately, and it waits
+  for `bbox-api`'s `/auth/register` to write a credentials file rather than
+  needing a password supplied up front (see "Enabling remote access"
+  above) — `enable-remote.ps1` is now only a manual override for switching
+  accounts.
 - **`bboxai-agent`'s log file stayed empty even while the service was
   working correctly.** NSSM was launching it as plain `python agent.py`;
   Python block-buffers stdout when it isn't attached to a terminal (which a

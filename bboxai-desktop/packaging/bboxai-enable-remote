@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Enables away-from-home access for a bboxai-desktop .deb install by setting
-# up bbox-agent as a systemd service, tunneling to the shared bbox-relay so
-# https://bboxai-remote.unitani.com can reach this machine.
+# Manual override for remote access on a bboxai-desktop .deb install.
 #
-# Run this AFTER registering a bboxAI account through the local web UI
-# (http://bboxai:8321).
+# The postinst script already sets up bbox-agent and enables remote access
+# automatically the first time you register a local account -- you don't
+# need this script for a normal fresh install. Use it only to force a
+# *different* local account to become the remote-enabled one (bbox-agent
+# sticks with whichever account it picked up first).
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -12,12 +13,9 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-APP_DIR=/opt/bboxai-desktop
 DATA_DIR=/var/lib/bboxai-desktop
-SVC_USER=bboxai
 API_BASE="http://localhost:8000"
-RELAY_URL="https://bboxai-relay.unitani.com"
-ENV_FILE="/etc/bboxai-agent.env"
+AGENT_CREDENTIALS_FILE="$DATA_DIR/agent-credentials.json"
 
 USERNAME="${BBOXAI_USERNAME:-}"
 PASSWORD="${BBOXAI_PASSWORD:-}"
@@ -36,40 +34,29 @@ STATUS=$(curl -s -o "$LOGIN_TMP" -w '%{http_code}' -X POST "$API_BASE/auth/login
   --data-urlencode "username=$USERNAME" \
   --data-urlencode "password=$PASSWORD")
 if [ "$STATUS" != "200" ]; then
-  echo "Login failed (HTTP $STATUS). Register an account at http://bboxai:8321 first." >&2
+  echo "Login failed (HTTP $STATUS). Check the username/password and try again." >&2
   exit 1
 fi
 echo "    login OK"
 
-echo "==> Setting up bbox-agent venv"
-if [ ! -d "$DATA_DIR/agent-venv" ]; then
-  python3 -m venv "$DATA_DIR/agent-venv"
-fi
-# shellcheck disable=SC1091
-source "$DATA_DIR/agent-venv/bin/activate"
-pip install --upgrade pip -q
-pip install -q -r "$APP_DIR/bbox-agent/requirements.txt"
-deactivate
-chown -R "$SVC_USER:$SVC_USER" "$DATA_DIR/agent-venv"
+echo "==> Writing credentials for bbox-agent to pick up"
+install -m 600 -o bboxai -g bboxai /dev/null "$AGENT_CREDENTIALS_FILE"
+printf '{"username": %s, "password": %s}' \
+  "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$USERNAME")" \
+  "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$PASSWORD")" \
+  > "$AGENT_CREDENTIALS_FILE"
 
-echo "==> Writing $ENV_FILE"
-cat > "$ENV_FILE" <<EOF
-BBOXAI_API_BASE=$API_BASE
-BBOXAI_RELAY_URL=$RELAY_URL
-BBOXAI_USERNAME=$USERNAME
-BBOXAI_PASSWORD=$PASSWORD
-EOF
-chmod 600 "$ENV_FILE"
-
-echo "==> Installing bboxai-agent.service"
-cp "$APP_DIR/packaging/bboxai-agent.service" /etc/systemd/system/bboxai-agent.service
-systemctl daemon-reload
-systemctl enable --now bboxai-agent.service
+echo "==> Restarting bboxai-agent.service to pick it up"
 systemctl restart bboxai-agent.service
 
+echo "==> Waiting for the agent to connect..."
+sleep 4
 echo
 echo "================================================================"
-echo " bbox-agent is running and tunneling to $RELAY_URL."
-echo " Log into https://bboxai-remote.unitani.com with the same"
-echo " bboxAI account from anywhere."
+journalctl -u bboxai-agent -n 20 --no-pager
+echo "================================================================"
+echo
+echo "If it says 'Tunnel connected.', log in at"
+echo "  https://bboxai-remote.unitani.com"
+echo "with account '$USERNAME' from anywhere."
 echo "================================================================"

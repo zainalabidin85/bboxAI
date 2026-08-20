@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # bboxai-desktop installer (Linux only).
 #
-# Sets up bbox-api + a local bbox-web build behind nginx on this machine.
-# Run from a checkout of the bboxAI repo: ./bboxai-desktop/install.sh
-#
-# After this finishes, run ./bboxai-desktop/enable-remote.sh (once you've
-# registered an account through the web UI) to enable away-from-home access
-# via the shared bbox-relay / bboxai-remote.unitani.com.
+# Sets up bbox-api + a local bbox-web build behind nginx, plus bbox-agent
+# (tunnels to the shared bbox-relay), on this machine. Remote access via
+# bboxai-remote.unitani.com activates automatically the first time you
+# register an account through the local web UI -- no separate manual step
+# (see bbox-agent/agent.py's credentials-file wait loop, and
+# bbox-api/routers/auth.py which writes it on registration). If you ever
+# need to force a *different* local account to be the remote-enabled one,
+# see ./bboxai-desktop/enable-remote.sh.
 
 set -euo pipefail
 
@@ -22,6 +24,9 @@ API_PORT=8000
 DB_NAME=bboxai
 DB_USER=bboxai
 DB_PASS_FILE="$INSTALL_DIR/.db_password"
+RELAY_URL="https://bboxai-relay.unitani.com"
+AGENT_ENV_FILE="/etc/bboxai-agent.env"
+AGENT_CREDENTIALS_FILE="$INSTALL_DIR/.agent-credentials.json"
 
 echo "==> Installing bboxai-desktop into $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
@@ -114,6 +119,7 @@ DATABASE_URL=postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME
 SECRET_KEY=$(openssl rand -hex 32)
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 CORS_ORIGINS=http://localhost:$WEB_PORT,http://bboxai:$WEB_PORT
+AGENT_CREDENTIALS_PATH=$AGENT_CREDENTIALS_FILE
 EOF
 else
   echo "==> bbox-api/.env already exists, leaving it as-is"
@@ -151,6 +157,50 @@ WantedBy=multi-user.target
 EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now bboxai-api.service
+
+echo "==> Setting up bbox-agent (tunnels to $RELAY_URL for remote access)"
+rsync -a --exclude venv --exclude __pycache__ \
+  "$SOURCE_DIR/bbox-agent/" "$INSTALL_DIR/bbox-agent/"
+cd "$INSTALL_DIR/bbox-agent"
+if [ ! -d venv ]; then
+  python3 -m venv venv
+fi
+# shellcheck disable=SC1091
+source venv/bin/activate
+pip install --upgrade pip -q
+pip install -q -r requirements.txt
+deactivate
+cd "$INSTALL_DIR"
+
+echo "==> Writing $AGENT_ENV_FILE (root-only)"
+sudo tee "$AGENT_ENV_FILE" >/dev/null <<EOF
+BBOXAI_API_BASE=http://localhost:$API_PORT
+BBOXAI_RELAY_URL=$RELAY_URL
+BBOXAI_CREDENTIALS_FILE=$AGENT_CREDENTIALS_FILE
+EOF
+sudo chmod 600 "$AGENT_ENV_FILE"
+
+echo "==> Installing bboxai-agent.service"
+sudo tee /etc/systemd/system/bboxai-agent.service >/dev/null <<EOF
+[Unit]
+Description=bboxAI desktop agent (relay tunnel for remote access)
+After=network.target bboxai-api.service
+Wants=bboxai-api.service
+
+[Service]
+Type=simple
+User=$USER
+EnvironmentFile=$AGENT_ENV_FILE
+WorkingDirectory=$INSTALL_DIR/bbox-agent
+ExecStart=$INSTALL_DIR/bbox-agent/venv/bin/python -u agent.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now bboxai-agent.service
 
 echo "==> Building bbox-web (local build, talks to http://localhost:$API_PORT)"
 cd "$INSTALL_DIR/bbox-web"
@@ -194,7 +244,7 @@ echo " bboxai-desktop installed."
 echo " Local UI:  http://bboxai:$WEB_PORT  (or http://localhost:$WEB_PORT)"
 echo " API:       http://localhost:$API_PORT (docs at /docs)"
 echo
-echo " Next: open the UI above and register an account, then run"
-echo "   ./bboxai-desktop/enable-remote.sh"
-echo " to enable away-from-home access via bboxai-remote.unitani.com."
+echo " Next: open the UI above and register an account. Remote access via"
+echo " bboxai-remote.unitani.com activates automatically once you do --"
+echo " no separate step needed."
 echo "================================================================"

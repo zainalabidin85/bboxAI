@@ -1,13 +1,34 @@
+import json
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from auth import create_access_token, hash_password, verify_password
+from config import settings
 from database import get_db
 from models import User
 
 router = APIRouter()
+
+
+def _write_agent_credentials(username: str, password: str) -> None:
+    """Opt-in (see config.agent_credentials_path) — lets bbox-agent pick up
+    a freshly-registered account automatically instead of requiring a
+    separate manual "enable remote access" step with re-typed credentials.
+    Best-effort: a failure here must never break registration itself."""
+    path = settings.agent_credentials_path
+    if not path:
+        return
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            json.dump({"username": username, "password": password}, f)
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
 
 
 class RegisterBody(BaseModel):
@@ -35,6 +56,7 @@ def register(body: RegisterBody, db: Session = Depends(get_db)):
     )
     db.add(user)
     db.commit()
+    _write_agent_credentials(user.username, body.password)
     return {"message": "Account created. You can now log in."}
 
 

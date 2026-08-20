@@ -6,7 +6,9 @@ Architecture: all
 Maintainer: Zainal Abidin <zainalabidin@unimap.edu.my>
 Depends: python3 (>= 3.10), python3-venv, python3-pip, curl, openssl, postgresql, nginx, libgl1, libglib2.0-0
 Description: bboxAI desktop — local image/video annotation + YOLOv8 training
- Installs bbox-api (FastAPI backend) and a pre-built bbox-web UI as
- systemd-managed services on this machine, fronted by nginx. Local UI at
- http://bboxai:8321 once installed. Away-from-home access can be enabled
- afterward with bboxai-enable-remote.
+ Installs bbox-api (FastAPI backend), bbox-agent, and a pre-built bbox-web
+ UI as systemd-managed services on this machine, fronted by nginx. Local UI
+ at http://bboxai:8321 once installed. Away-from-home access via
+ bboxai-remote.unitani.com activates automatically the first time you
+ register an account through the UI. Use bboxai-enable-remote only to
+ switch which local account is the remote-enabled one.

@@ -23,6 +23,13 @@ import httpx
 import websockets
 
 CONFIG_PATH = Path.home() / ".bboxai" / "agent.json"
+# Opt-in (set by the bboxai-desktop installers) — a file bbox-api's
+# /auth/register writes {"username","password"} to on a successful
+# registration, so this agent can pick up a freshly-created account and
+# self-register with the relay automatically, with no separate manual
+# "enable remote access" step. See bbox-api/routers/auth.py.
+CREDENTIALS_FILE = os.environ.get("BBOXAI_CREDENTIALS_FILE", "")
+CREDENTIALS_POLL_SECONDS = 5
 MAX_MESSAGE_BYTES = 300 * 1024 * 1024
 TOKEN_REFRESH_MARGIN_SECONDS = 6 * 24 * 60 * 60  # re-login before the 7-day bboxAI JWT expires
 HOP_BY_HOP = {"host", "content-length", "connection", "transfer-encoding", "keep-alive"}
@@ -41,11 +48,62 @@ def save_config(cfg: dict) -> None:
     os.chmod(CONFIG_PATH, 0o600)
 
 
-def ensure_settings(cfg: dict) -> dict:
+def _read_credentials_file() -> dict | None:
+    if not CREDENTIALS_FILE or not os.path.exists(CREDENTIALS_FILE):
+        return None
+    try:
+        with open(CREDENTIALS_FILE) as f:
+            data = json.load(f)
+        if data.get("username") and data.get("password"):
+            return data
+    except (json.JSONDecodeError, OSError):
+        pass
+    return None
+
+
+async def ensure_settings(cfg: dict) -> dict:
     cfg.setdefault("api_base", os.environ.get("BBOXAI_API_BASE", "http://localhost:8000"))
     cfg["relay_url"] = os.environ.get("BBOXAI_RELAY_URL", cfg.get("relay_url", ""))
-    cfg["username"] = os.environ.get("BBOXAI_USERNAME", cfg.get("username", ""))
-    cfg["password"] = os.environ.get("BBOXAI_PASSWORD", cfg.get("password", ""))
+
+    # A credentials file always wins over whatever's cached, when present —
+    # covers both a fresh install (nothing cached yet) and a deliberate
+    # account switch (enable-remote.sh's manual override writes a fresh file
+    # to force a *different* account; without this the old cached
+    # username/password would win and the new file would never be read).
+    # Consumed once, then deleted so the plaintext password isn't left
+    # duplicated on disk. Clears the old relay registration too, since a
+    # device_id/secret pair is tied to the username it was registered under.
+    file_creds = _read_credentials_file()
+    if file_creds:
+        if file_creds["username"] != cfg.get("username"):
+            cfg.pop("device_id", None)
+            cfg.pop("device_secret", None)
+            cfg.pop("desktop_token", None)
+        cfg["username"], cfg["password"] = file_creds["username"], file_creds["password"]
+        try:
+            os.remove(CREDENTIALS_FILE)
+        except OSError:
+            pass
+    else:
+        cfg["username"] = os.environ.get("BBOXAI_USERNAME", cfg.get("username", ""))
+        cfg["password"] = os.environ.get("BBOXAI_PASSWORD", cfg.get("password", ""))
+
+    # Still nothing (fresh install, no cache, no env override, no file yet)
+    # but a credentials file is configured — wait for a local account to be
+    # registered rather than falling straight to an interactive prompt,
+    # which would hang forever under a service with no attached TTY.
+    if (not cfg["username"] or not cfg["password"]) and CREDENTIALS_FILE:
+        print(f"Waiting for a local bboxAI account to be registered (watching {CREDENTIALS_FILE})...")
+        while not cfg["username"] or not cfg["password"]:
+            creds = _read_credentials_file()
+            if creds:
+                cfg["username"], cfg["password"] = creds["username"], creds["password"]
+                try:
+                    os.remove(CREDENTIALS_FILE)
+                except OSError:
+                    pass
+                break
+            await asyncio.sleep(CREDENTIALS_POLL_SECONDS)
 
     if not cfg["relay_url"]:
         cfg["relay_url"] = input("Relay URL (e.g. https://relay.example.com): ").strip()
@@ -143,7 +201,7 @@ async def run_tunnel(cfg: dict) -> None:
 
 
 async def main() -> None:
-    cfg = ensure_settings(load_config())
+    cfg = await ensure_settings(load_config())
     await ensure_local_token(cfg)
 
     if not cfg.get("device_id"):

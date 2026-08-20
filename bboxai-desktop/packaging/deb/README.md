@@ -31,17 +31,20 @@ deviate.
 |---|---|
 | `build.sh` | Run on Linux. Pre-builds `bbox-web`, assembles the package tree, and runs `dpkg-deb --build`. |
 | `control` | Package metadata and `Depends` (templated — `build.sh` substitutes the version). |
-| `postinst` | Runs as root after files are unpacked. Creates the `bboxai` user, provisions Postgres, sets up the venv, writes `.env`, downloads the default weight, installs the systemd unit and nginx site, adds the `bboxai` hosts entry. Idempotent — safe to re-run on upgrade (dpkg always calls `postinst configure` on every install). |
-| `prerm` | Stops and disables the systemd service before removal. |
-| `postrm` | Removes the systemd unit and nginx site always; on **purge** only (not plain `remove`), also drops the Postgres role/db, deletes `/var/lib/bboxai-desktop` and `/var/www/bboxai-desktop`, removes the `bboxai` system user, and removes the hosts entry. |
+| `postinst` | Runs as root after files are unpacked. Creates the `bboxai` user, provisions Postgres, sets up the `bbox-api` venv, writes `bbox-api.env` (including `AGENT_CREDENTIALS_PATH`), downloads the default weight, installs and starts `bboxai-api.service`, sets up the `bbox-agent` venv, writes `/etc/bboxai-agent.env`, installs and starts `bboxai-agent.service`, installs the nginx site, adds the `bboxai` hosts entry. Idempotent — safe to re-run on upgrade (dpkg always calls `postinst configure` on every install). |
+| `prerm` | Stops and disables the systemd services before removal. |
+| `postrm` | Removes the systemd units and nginx site always; on **purge** only (not plain `remove`), also drops the Postgres role/db, deletes `/var/lib/bboxai-desktop` and `/var/www/bboxai-desktop`, removes the `bboxai` system user, and removes the hosts entry. |
 
-`bboxai-api.service` and `bboxai-desktop.nginx.conf` (one directory up, in
-`bboxai-desktop/packaging/`, shared with the Windows/general packaging
-tooling) are the systemd unit and nginx site templates `postinst` installs.
-`bboxai-enable-remote` (same parent directory) is the packaged equivalent of
-`enable-remote.sh` — installed as a normal `/usr/bin` command, sets up
-`bbox-agent` as a systemd service for away-from-home access via the shared
-relay.
+`bboxai-api.service`, `bboxai-agent.service`, and `bboxai-desktop.nginx.conf`
+(one directory up, in `bboxai-desktop/packaging/`, shared with the
+Windows/general packaging tooling) are the systemd unit and nginx site
+templates `postinst` installs. Remote access activates automatically: once a
+local account is registered through the web UI, `bbox-api`'s `/auth/register`
+writes `agent-credentials.json`, and `bbox-agent` (already running, waiting)
+picks it up and self-registers with the shared relay — no separate step.
+`bboxai-enable-remote` (same parent directory, installed as a normal
+`/usr/bin` command) is now only a manual override, for forcing a *different*
+local account to become the remote-enabled one.
 
 ## Building it yourself
 
@@ -71,11 +74,14 @@ make sure Postgres is actually running (not just installed) and provision
 the `bboxai` role/db, build a venv and install `bbox-api`'s dependencies
 (GPU-detected — pulls the CUDA 12.4 `torch` build if `nvidia-smi` is
 present), write `.env` with a random `SECRET_KEY`, download the default
-`yolo11n.pt` weight, install and start the systemd service, configure nginx,
-and add `127.0.0.1 bboxai` to `/etc/hosts`.
+`yolo11n.pt` weight, install and start `bboxai-api.service`, set up
+`bbox-agent`'s venv and start `bboxai-agent.service` (it waits for a local
+account to exist), configure nginx, and add `127.0.0.1 bboxai` to
+`/etc/hosts`.
 
-When it's done: **`http://bboxai:8321`**. Register an account, then
-optionally run `sudo bboxai-enable-remote` for away-from-home access.
+When it's done: **`http://bboxai:8321`**. Register an account and remote
+access via `bboxai-remote.unitani.com` activates automatically — no
+separate step.
 
 ## Uninstalling
 

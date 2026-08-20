@@ -1,10 +1,10 @@
-# Enables away-from-home access for a bboxai-desktop Windows install by
-# setting up bbox-agent as a Windows service (via nssm), tunneling to the
-# shared bbox-relay so https://bboxai-remote.unitani.com can reach this
-# machine. Run this AFTER installing bboxai-desktop and registering a
-# bboxAI account through the local web UI (http://bboxai:8321).
+# Manual override for remote access on a bboxai-desktop Windows install.
 #
-# Must run elevated (same as the main installer).
+# install.ps1 already sets up bbox-agent and enables remote access
+# automatically the first time you register a local account -- you don't
+# need this script for a normal fresh install. Use it only to force a
+# *different* local account to become the remote-enabled one (bbox-agent
+# sticks with whichever account it picked up first).
 param(
     [Parameter(Mandatory = $true)][string]$AppDir,
     [Parameter(Mandatory = $true)][string]$DataDir,
@@ -13,11 +13,9 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
-$AgentDir  = Join-Path $AppDir "bbox-agent"
-$NssmExe   = Join-Path $AppDir "nssm.exe"
-$AgentVenv = Join-Path $DataDir "agent-venv"
-$ApiBase   = "http://localhost:8321"
-$RelayUrl  = "https://bboxai-relay.unitani.com"
+$NssmExe = Join-Path $AppDir "nssm.exe"
+$ApiBase = "http://localhost:8321"
+$AgentCredentialsFile = Join-Path $DataDir "agent-credentials.json"
 
 if (-not $Username) { $Username = Read-Host "bboxAI username" }
 if (-not $Password) {
@@ -32,41 +30,25 @@ try {
     Invoke-RestMethod -Uri "$ApiBase/auth/login" -Method Post `
         -ContentType "application/x-www-form-urlencoded" -Body $body | Out-Null
 } catch {
-    throw "Login failed against $ApiBase -- register an account at http://bboxai:8321 first. ($($_.Exception.Message))"
+    throw "Login failed against $ApiBase -- check the username/password. ($($_.Exception.Message))"
 }
 Write-Host "    login OK"
 
-Write-Host "==> Setting up bbox-agent venv"
-$pythonExe = (Join-Path $DataDir "venv\Scripts\python.exe")
-if (-not (Test-Path $pythonExe)) {
-    throw "bbox-api venv not found at $pythonExe -- install bboxai-desktop first"
-}
-if (-not (Test-Path $AgentVenv)) {
-    & $pythonExe "-m" "venv" $AgentVenv
-}
-$agentPython = Join-Path $AgentVenv "Scripts\python.exe"
-& $agentPython -m pip install --upgrade pip -q
-& $agentPython -m pip install -q -r (Join-Path $AgentDir "requirements.txt")
+Write-Host "==> Writing credentials for bbox-agent to pick up"
+$credsJson = @{ username = $Username; password = $Password } | ConvertTo-Json -Compress
+Set-Content -Path $AgentCredentialsFile -Value $credsJson -Encoding ascii -NoNewline
 
-Write-Host "==> Registering bboxai-agent Windows service"
-$prevEap = $ErrorActionPreference
-$ErrorActionPreference = "SilentlyContinue"
-& $NssmExe stop bboxai-agent 2>$null | Out-Null
-& $NssmExe remove bboxai-agent confirm 2>$null | Out-Null
-$ErrorActionPreference = $prevEap
-& $NssmExe install bboxai-agent $agentPython "-u agent.py"
-& $NssmExe set bboxai-agent AppDirectory $AgentDir
-& $NssmExe set bboxai-agent Start SERVICE_AUTO_START
-& $NssmExe set bboxai-agent AppStdout (Join-Path $DataDir "agent.log")
-& $NssmExe set bboxai-agent AppStderr (Join-Path $DataDir "agent.log")
-& $NssmExe set bboxai-agent AppEnvironmentExtra `
-    "BBOXAI_API_BASE=$ApiBase" "BBOXAI_RELAY_URL=$RelayUrl" `
-    "BBOXAI_USERNAME=$Username" "BBOXAI_PASSWORD=$Password"
-& $NssmExe start bboxai-agent
+Write-Host "==> Restarting bboxai-agent to pick it up"
+& $NssmExe restart bboxai-agent
 
+Write-Host "==> Waiting for the agent to connect..."
+Start-Sleep -Seconds 4
 Write-Host ""
 Write-Host "================================================================"
-Write-Host " bbox-agent is running and tunneling to $RelayUrl."
-Write-Host " Log into https://bboxai-remote.unitani.com with the same"
-Write-Host " bboxAI account from anywhere."
+Get-Content (Join-Path $DataDir "agent.log") -Tail 20
+Write-Host "================================================================"
+Write-Host ""
+Write-Host "If it says 'Tunnel connected.', log in at"
+Write-Host "  https://bboxai-remote.unitani.com"
+Write-Host "with account '$Username' from anywhere."
 Write-Host "================================================================"

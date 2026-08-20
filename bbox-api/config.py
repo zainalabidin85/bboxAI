@@ -6,6 +6,12 @@ class Settings(BaseSettings):
     storage_path: str = "./storage"
     weights_path: str = "./weights"
     web_dist_path: str = ""
+    # Opt-in, unset by default. When set (by the bboxai-desktop installers
+    # only — a plain self-hosted bbox-api leaves this empty), a successful
+    # /auth/register writes {"username","password"} here for bbox-agent to
+    # pick up, so remote access via bboxai-remote activates automatically
+    # without a separate manual "enable remote" step. See routers/auth.py.
+    agent_credentials_path: str = ""
     database_url: str = "postgresql://bboxai:password@localhost:5432/bboxai"
     secret_key: str = "change-this-to-a-random-secret-key-in-production"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days

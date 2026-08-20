@@ -13,6 +13,9 @@ API_PORT=8000
 DB_NAME=bboxai
 DB_USER=bboxai
 DB_PASS_FILE="$DATA_DIR/.db_password"
+RELAY_URL="https://bboxai-relay.unitani.com"
+AGENT_ENV_FILE="/etc/bboxai-agent.env"
+AGENT_CREDENTIALS_FILE="$DATA_DIR/agent-credentials.json"
 
 echo "==> Creating system user '$SVC_USER'"
 mkdir -p "$DATA_DIR"
@@ -77,6 +80,7 @@ DATABASE_URL=postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME
 SECRET_KEY=$(openssl rand -hex 32)
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 CORS_ORIGINS=http://localhost:$WEB_PORT,http://bboxai:$WEB_PORT
+AGENT_CREDENTIALS_PATH=$AGENT_CREDENTIALS_FILE
 EOF
   chmod 600 "$DATA_DIR/bbox-api.env"
   chown "$SVC_USER:$SVC_USER" "$DATA_DIR/bbox-api.env"
@@ -102,6 +106,31 @@ systemctl daemon-reload
 systemctl enable --now bboxai-api.service
 systemctl restart bboxai-api.service
 
+echo "==> Setting up bbox-agent (tunnels to $RELAY_URL for remote access)"
+if [ ! -d "$DATA_DIR/agent-venv" ]; then
+  python3 -m venv "$DATA_DIR/agent-venv"
+fi
+# shellcheck disable=SC1091
+source "$DATA_DIR/agent-venv/bin/activate"
+pip install --upgrade pip -q
+pip install -q -r "$APP_DIR/bbox-agent/requirements.txt"
+deactivate
+chown -R "$SVC_USER:$SVC_USER" "$DATA_DIR/agent-venv"
+
+echo "==> Writing $AGENT_ENV_FILE"
+cat > "$AGENT_ENV_FILE" <<EOF
+BBOXAI_API_BASE=http://localhost:$API_PORT
+BBOXAI_RELAY_URL=$RELAY_URL
+BBOXAI_CREDENTIALS_FILE=$AGENT_CREDENTIALS_FILE
+EOF
+chmod 600 "$AGENT_ENV_FILE"
+
+echo "==> Installing bboxai-agent.service"
+cp "$APP_DIR/packaging/bboxai-agent.service" /etc/systemd/system/bboxai-agent.service
+systemctl daemon-reload
+systemctl enable --now bboxai-agent.service
+systemctl restart bboxai-agent.service
+
 echo "==> Configuring nginx"
 cp "$APP_DIR/packaging/bboxai-desktop.nginx.conf" /etc/nginx/sites-available/bboxai-desktop.conf
 ln -sf /etc/nginx/sites-available/bboxai-desktop.conf /etc/nginx/sites-enabled/bboxai-desktop.conf
@@ -123,9 +152,9 @@ echo " bboxai-desktop installed."
 echo " Local UI:  http://bboxai:$WEB_PORT  (or http://localhost:$WEB_PORT)"
 echo " API:       http://localhost:$API_PORT (docs at /docs)"
 echo
-echo " Next: open the UI above and register an account, then run"
-echo "   sudo bboxai-enable-remote"
-echo " to enable away-from-home access."
+echo " Next: open the UI above and register an account. Remote access via"
+echo " bboxai-remote.unitani.com activates automatically once you do --"
+echo " no separate step needed."
 echo "================================================================"
 
 exit 0

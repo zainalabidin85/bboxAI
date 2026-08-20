@@ -6,12 +6,16 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
-$ApiDir     = Join-Path $AppDir "bbox-api"
-$NssmExe    = Join-Path $AppDir "nssm.exe"
-$VenvDir    = Join-Path $DataDir "venv"
-$StorageDir = Join-Path $DataDir "storage"
-$WeightsDir = Join-Path $DataDir "weights"
-$WebPort    = 8321
+$ApiDir       = Join-Path $AppDir "bbox-api"
+$AgentDir     = Join-Path $AppDir "bbox-agent"
+$NssmExe      = Join-Path $AppDir "nssm.exe"
+$VenvDir      = Join-Path $DataDir "venv"
+$AgentVenvDir = Join-Path $DataDir "agent-venv"
+$StorageDir   = Join-Path $DataDir "storage"
+$WeightsDir   = Join-Path $DataDir "weights"
+$WebPort      = 8321
+$RelayUrl     = "https://bboxai-relay.unitani.com"
+$AgentCredentialsFile = Join-Path $DataDir "agent-credentials.json"
 
 Write-Host "==> Ensuring data directories exist"
 New-Item -ItemType Directory -Force -Path $DataDir, $StorageDir, $WeightsDir | Out-Null
@@ -102,6 +106,7 @@ SECRET_KEY=$secretKey
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 CORS_ORIGINS=http://localhost:$WebPort,http://bboxai:$WebPort
 WEB_DIST_PATH=$webDistFwd
+AGENT_CREDENTIALS_PATH=$($AgentCredentialsFile -replace '\\', '/')
 "@ | Out-File -Encoding ascii $EnvFile
 } else {
     Write-Host "==> $EnvFile already exists, leaving it as-is"
@@ -142,8 +147,36 @@ if ($hostsContent -notmatch '(?m)^127\.0\.0\.1\s+bboxai\s*$') {
     Add-Content -Path $HostsPath -Value "`r`n127.0.0.1 bboxai"
 }
 
+Write-Host "==> Setting up bbox-agent (tunnels to $RelayUrl for remote access)"
+if (-not (Test-Path $AgentVenvDir)) {
+    & $pythonExe "-m" "venv" $AgentVenvDir
+}
+$agentPython = Join-Path $AgentVenvDir "Scripts\python.exe"
+& $agentPython -m pip install --upgrade pip -q
+& $agentPython -m pip install -q -r (Join-Path $AgentDir "requirements.txt")
+
+Write-Host "==> Registering bboxai-agent Windows service"
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+& $NssmExe stop bboxai-agent 2>$null | Out-Null
+& $NssmExe remove bboxai-agent confirm 2>$null | Out-Null
+$ErrorActionPreference = $prevEap
+& $NssmExe install bboxai-agent $agentPython "-u agent.py"
+& $NssmExe set bboxai-agent AppDirectory $AgentDir
+& $NssmExe set bboxai-agent Start SERVICE_AUTO_START
+& $NssmExe set bboxai-agent AppStdout (Join-Path $DataDir "agent.log")
+& $NssmExe set bboxai-agent AppStderr (Join-Path $DataDir "agent.log")
+& $NssmExe set bboxai-agent AppEnvironmentExtra `
+    "BBOXAI_API_BASE=http://localhost:$WebPort" "BBOXAI_RELAY_URL=$RelayUrl" `
+    "BBOXAI_CREDENTIALS_FILE=$AgentCredentialsFile"
+& $NssmExe start bboxai-agent
+
 Write-Host ""
 Write-Host "================================================================"
 Write-Host " bboxai-desktop installed."
 Write-Host " Local UI: http://bboxai:$WebPort  (or http://localhost:$WebPort)"
+Write-Host ""
+Write-Host " Register an account through the UI above -- remote access via"
+Write-Host " bboxai-remote.unitani.com activates automatically once you do,"
+Write-Host " no separate step needed."
 Write-Host "================================================================"
