@@ -7,6 +7,9 @@ param(
 )
 $ErrorActionPreference = "Continue"
 
+New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+Start-Transcript -Path (Join-Path $DataDir "uninstall.log") -Append | Out-Null
+
 $NssmExe = Join-Path $AppDir "nssm.exe"
 
 Write-Host "==> Stopping and removing bboxai-api / bboxai-agent services"
@@ -30,10 +33,17 @@ Get-ChildItem -Path $AppDir -Filter "__pycache__" -Recurse -Directory -ErrorActi
 Write-Host "==> Removing 'bboxai' hostname from the hosts file"
 $HostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
 if (Test-Path $HostsPath) {
-    (Get-Content $HostsPath) | Where-Object { $_ -notmatch '^127\.0\.0\.1\s+bboxai\s*$' } | Set-Content $HostsPath
+    $lines = @(Get-Content $HostsPath -ErrorAction SilentlyContinue)
+    $filtered = @($lines | Where-Object { $_ -notmatch '^127\.0\.0\.1\s+bboxai\s*$' })
+    if ($filtered.Count -eq 0 -and $lines.Count -gt 0) {
+        Write-Host "    hosts file will end up empty after removing this entry (nothing else was in it)"
+    }
+    Set-Content -Path $HostsPath -Value $filtered
 }
 
 if ($Purge) {
     Write-Host "==> Purging bboxai-desktop data (database, storage, weights)"
     Remove-Item -Recurse -Force $DataDir -ErrorAction SilentlyContinue
+} else {
+    Stop-Transcript | Out-Null
 }

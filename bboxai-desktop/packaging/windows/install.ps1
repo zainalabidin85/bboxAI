@@ -17,6 +17,9 @@ $WebPort      = 8321
 $RelayUrl     = "https://bboxai-relay.unitani.com"
 $AgentCredentialsFile = Join-Path $DataDir "agent-credentials.json"
 
+New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+Start-Transcript -Path (Join-Path $DataDir "install.log") -Append | Out-Null
+
 Write-Host "==> Ensuring data directories exist"
 New-Item -ItemType Directory -Force -Path $DataDir, $StorageDir, $WeightsDir | Out-Null
 
@@ -144,7 +147,20 @@ Write-Host "==> Adding 'bboxai' hostname to the hosts file"
 $HostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
 $hostsContent = Get-Content $HostsPath -Raw -ErrorAction SilentlyContinue
 if ($hostsContent -notmatch '(?m)^127\.0\.0\.1\s+bboxai\s*$') {
-    Add-Content -Path $HostsPath -Value "`r`n127.0.0.1 bboxai"
+    try {
+        Add-Content -Path $HostsPath -Value "`r`n127.0.0.1 bboxai" -ErrorAction Stop
+    } catch {
+        Write-Warning "    Could not write to hosts file ($_) -- use http://localhost:$WebPort instead of http://bboxai:$WebPort"
+    }
+}
+# Some antivirus / hosts-file-protection tools silently revert writes to this
+# file without PowerShell seeing an error -- verify the entry actually landed
+# rather than assuming success, so this is diagnosable without SSHing in.
+$verifyHosts = Get-Content $HostsPath -Raw -ErrorAction SilentlyContinue
+if ($verifyHosts -notmatch '(?m)^127\.0\.0\.1\s+bboxai\s*$') {
+    Write-Warning "    'bboxai' entry not present in hosts file after writing it -- something is reverting the change. Use http://localhost:$WebPort instead, or add '127.0.0.1 bboxai' to $HostsPath manually."
+} else {
+    Write-Host "    Confirmed 'bboxai' resolves via hosts file"
 }
 
 Write-Host "==> Setting up bbox-agent (tunnels to $RelayUrl for remote access)"
@@ -180,3 +196,4 @@ Write-Host " Register an account through the UI above -- remote access via"
 Write-Host " bboxai-remote.unitani.com activates automatically once you do,"
 Write-Host " no separate step needed."
 Write-Host "================================================================"
+Stop-Transcript | Out-Null
