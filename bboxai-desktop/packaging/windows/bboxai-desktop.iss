@@ -3,7 +3,7 @@
 ; packaging/windows/stage/ before invoking ISCC on this script.
 
 #define MyAppName "bboxAI Desktop"
-#define MyAppVersion "1.2.6"
+#define MyAppVersion "1.2.7"
 #define MyAppPublisher "Zainal Abidin"
 #define MyAppURL "https://github.com/zainalabidin85/bboxAI"
 
@@ -24,6 +24,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+SetupIconFile=assets\bboxai.ico
 
 [Files]
 Source: "stage\bbox-api\*"; DestDir: "{app}\bbox-api"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -33,10 +34,12 @@ Source: "stage\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "enable-remote.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "assets\bboxai.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\bboxAI Desktop"; Filename: "http://localhost:8321"
+Name: "{group}\bboxAI Desktop"; Filename: "http://localhost:8321"; IconFilename: "{app}\bboxai.ico"
 Name: "{group}\Uninstall bboxAI Desktop"; Filename: "{uninstallexe}"
+Name: "{commondesktop}\bboxAI Desktop"; Filename: "http://localhost:8321"; IconFilename: "{app}\bboxai.ico"
 
 [Run]
 Filename: "powershell.exe"; \
