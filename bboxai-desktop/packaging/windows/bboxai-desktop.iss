@@ -3,7 +3,7 @@
 ; packaging/windows/stage/ before invoking ISCC on this script.
 
 #define MyAppName "bboxAI Desktop"
-#define MyAppVersion "1.2.1"
+#define MyAppVersion "1.2.2"
 #define MyAppPublisher "Zainal Abidin"
 #define MyAppURL "https://github.com/zainalabidin85/bboxAI"
 
@@ -42,7 +42,7 @@ Name: "{group}\Uninstall bboxAI Desktop"; Filename: "{uninstallexe}"
 Filename: "powershell.exe"; \
     Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install.ps1"" -AppDir ""{app}"" -DataDir ""{commonappdata}\bboxai-desktop"""; \
     StatusMsg: "Setting up bbox-api, downloading dependencies, and starting the service (this can take a few minutes)..."; \
-    Flags: runhidden waituntilterminated
+    Flags: waituntilterminated
 Filename: "http://bboxai:8321"; Description: "Open bboxAI Desktop"; Flags: postinstall shellexec skipifsilent nowait
 
 [UninstallRun]

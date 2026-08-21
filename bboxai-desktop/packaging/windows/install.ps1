@@ -66,7 +66,7 @@ if (-not (Test-Path $VenvDir)) {
     & $pythonExe "-m" "venv" $VenvDir
 }
 $venvPython = Join-Path $VenvDir "Scripts\python.exe"
-& $venvPython -m pip install --upgrade pip -q
+& $venvPython -m pip install --upgrade pip
 
 # psycopg2-binary is Postgres-only -- Windows uses SQLite (config.py/database.py
 # already handle both), and psycopg2-binary has no prebuilt wheel for newer
@@ -78,12 +78,12 @@ $reqWin = Join-Path $DataDir "requirements-windows.txt"
 $hasNvidia = Test-Command "nvidia-smi"
 if ($hasNvidia) {
     Write-Host "    NVIDIA GPU detected -- pinning CUDA 12.4 torch build"
-    & $venvPython -m pip install -q torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+    & $venvPython -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
     "torch==2.6.0+cu124" | Out-File -Encoding ascii (Join-Path $DataDir "constraints.txt")
-    & $venvPython -m pip install -q -r $reqWin -c (Join-Path $DataDir "constraints.txt")
+    & $venvPython -m pip install -r $reqWin -c (Join-Path $DataDir "constraints.txt")
 } else {
     Write-Host "    No NVIDIA GPU detected -- installing default (CPU) torch"
-    & $venvPython -m pip install -q -r $reqWin
+    & $venvPython -m pip install -r $reqWin
 }
 
 $EnvFile = Join-Path $ApiDir ".env"
@@ -152,8 +152,8 @@ if (-not (Test-Path $AgentVenvDir)) {
     & $pythonExe "-m" "venv" $AgentVenvDir
 }
 $agentPython = Join-Path $AgentVenvDir "Scripts\python.exe"
-& $agentPython -m pip install --upgrade pip -q
-& $agentPython -m pip install -q -r (Join-Path $AgentDir "requirements.txt")
+& $agentPython -m pip install --upgrade pip
+& $agentPython -m pip install -r (Join-Path $AgentDir "requirements.txt")
 
 Write-Host "==> Registering bboxai-agent Windows service"
 $prevEap = $ErrorActionPreference
