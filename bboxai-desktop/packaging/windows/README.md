@@ -56,9 +56,13 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 # → out\bboxai-desktop-setup-1.0.0.exe
 ```
 
-`build.ps1` bakes `VITE_API_BASE_URL=http://bboxai:8321` into the `bbox-web`
+`build.ps1` bakes `VITE_API_BASE_URL=http://localhost:8321` into the `bbox-web`
 build (same-origin with the API, matching the single-process architecture
-above) — if you change the port `install.ps1` uses, update both.
+above) — if you change the port `install.ps1` uses, update both. Uses
+`localhost`, not the `bboxai` hosts-file alias below, because some
+antivirus/endpoint-protection software treats hosts-file writes as tampering
+and silently reverts them — `localhost` always resolves without depending on
+that file at all.
 
 ## Installing
 
@@ -75,10 +79,12 @@ On first run it will, in order:
 3. Write `%ProgramFiles%\bboxai-desktop\bbox-api\.env` with a random `SECRET_KEY` and a SQLite `DATABASE_URL`.
 4. Download the default `yolo11n.pt` base weight.
 5. Register and start `bboxai-api` as a Windows service via NSSM.
-6. Add `127.0.0.1 bboxai` to the hosts file.
+6. Add `127.0.0.1 bboxai` to the hosts file (best-effort — some antivirus
+   software reverts this; `localhost` is what the app actually relies on).
 
 Takes a few minutes (mostly step 2 — `torch`/`opencv`/`ultralytics` aren't
-small) and needs internet access throughout. When it's done: **`http://bboxai:8321`**.
+small) and needs internet access throughout. When it's done: **`http://localhost:8321`**
+(or `http://bboxai:8321`, if that hostname resolves on your machine).
 
 ### Enabling remote access (away from home)
 
@@ -86,7 +92,7 @@ Automatic — no action needed. `install.ps1` sets up and starts
 `bboxai-agent` immediately, before any account exists; it waits (polling
 `agent-credentials.json`, written by `bbox-api`'s `/auth/register` on a
 successful registration) rather than requiring a password up front. Register
-an account through `http://bboxai:8321` and the same account works at
+an account through `http://localhost:8321` and the same account works at
 `bboxai-remote.unitani.com` from anywhere shortly after — check
 `%ProgramData%\bboxai-desktop\agent.log` for "Tunnel connected." to confirm.
 

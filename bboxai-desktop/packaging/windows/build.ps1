@@ -14,7 +14,7 @@ $StageDir  = Join-Path $ScriptDir "stage"
 Write-Host "==> Building bbox-web (bundled, pre-built -- no Node needed at install time)"
 Push-Location (Join-Path $SourceDir "bbox-web")
 @"
-VITE_API_BASE_URL=http://bboxai:8321
+VITE_API_BASE_URL=http://localhost:8321
 VITE_REMOTE=false
 VITE_APP_TITLE=bboxAI-Desktop
 "@ | Out-File -Encoding ascii .env.production
@@ -50,4 +50,4 @@ if (-not (Test-Path $IsccPath)) {
 New-Item -ItemType Directory -Force -Path (Join-Path $ScriptDir "out") | Out-Null
 & $IsccPath (Join-Path $ScriptDir "bboxai-desktop.iss")
 
-Write-Host "==> Built: $ScriptDir\out\bboxai-desktop-setup-1.2.5.exe"
+Write-Host "==> Built: $ScriptDir\out\bboxai-desktop-setup-1.2.6.exe"
