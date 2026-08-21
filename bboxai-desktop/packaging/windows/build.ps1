@@ -18,8 +18,12 @@ VITE_API_BASE_URL=http://bboxai:8321
 VITE_REMOTE=false
 VITE_APP_TITLE=bboxAI-Desktop
 "@ | Out-File -Encoding ascii .env.production
+$ErrorActionPreference = "Continue"
 npm install --silent
+if ($LASTEXITCODE -ne 0) { $ErrorActionPreference = "Stop"; throw "npm install failed with exit code $LASTEXITCODE" }
 npm run build --silent
+if ($LASTEXITCODE -ne 0) { $ErrorActionPreference = "Stop"; throw "npm run build failed with exit code $LASTEXITCODE" }
+$ErrorActionPreference = "Stop"
 Pop-Location
 
 Write-Host "==> Staging files"
