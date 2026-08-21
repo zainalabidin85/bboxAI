@@ -3,7 +3,7 @@
 ; packaging/windows/stage/ before invoking ISCC on this script.
 
 #define MyAppName "bboxAI Desktop"
-#define MyAppVersion "1.2.2"
+#define MyAppVersion "1.2.3"
 #define MyAppPublisher "Zainal Abidin"
 #define MyAppURL "https://github.com/zainalabidin85/bboxAI"
 
@@ -45,7 +45,25 @@ Filename: "powershell.exe"; \
     Flags: waituntilterminated
 Filename: "http://bboxai:8321"; Description: "Open bboxAI Desktop"; Flags: postinstall shellexec skipifsilent nowait
 
-[UninstallRun]
-Filename: "powershell.exe"; \
-    Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall.ps1"" -AppDir ""{app}"" -DataDir ""{commonappdata}\bboxai-desktop"""; \
-    Flags: runhidden waituntilterminated; RunOnceId: "UninstallBboxaiDesktop"
+[Code]
+// Uninstall.ps1 only deletes the app's data directory (accounts, project
+// storage, trained weights, the Python venvs) when passed -Purge, and
+// nothing here did that automatically -- a plain uninstall silently left
+// gigabytes of data and every registered account sitting on disk. Prompt
+// at uninstall time instead of guessing which behavior the user wants.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+  PurgeArg: String;
+  DataDir: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    DataDir := ExpandConstant('{commonappdata}\bboxai-desktop');
+    PurgeArg := '';
+    if MsgBox('Also delete all bboxAI data -- accounts, projects, annotations, and trained models -- stored in:' + #13#10 + DataDir + #13#10#13#10 + 'This cannot be undone. Choose No to keep this data (e.g. to reinstall later without losing it).', mbConfirmation, MB_YESNO) = IDYES then
+      PurgeArg := ' -Purge';
+
+    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\uninstall.ps1" -AppDir "' + ExpandConstant('{app}') + '" -DataDir "' + DataDir + '"' + PurgeArg, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
+end;

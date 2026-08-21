@@ -106,12 +106,13 @@ local `bbox-api`, writes a fresh `agent-credentials.json`, and restarts
 ## Uninstalling
 
 Use "Add or Remove Programs", or run `unins000.exe` from the install
-directory. Stops and removes the service, removes the hosts entry. **Your
-data (SQLite db, storage, weights) is kept** at
-`%ProgramData%\bboxai-desktop` — delete that folder manually if you want a
-completely clean slate. (`uninstall.ps1` supports a `-Purge` switch that does
-this automatically, but it isn't wired up to the uninstaller UI yet — nothing
-currently passes that flag.)
+directory. Stops and removes the service, removes the hosts entry. Partway
+through, a prompt asks whether to also delete your data (SQLite db, storage,
+weights) at `%ProgramData%\bboxai-desktop` — choose **No** to keep it (e.g.
+to reinstall later without losing accounts/projects), **Yes** to wipe it for
+a completely clean slate. This is driven by the `[Code]` section in
+`bboxai-desktop.iss`, which conditionally appends `-Purge` to the
+`uninstall.ps1` invocation based on the answer.
 
 ## Known limitation
 
