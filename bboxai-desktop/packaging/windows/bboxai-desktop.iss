@@ -3,7 +3,7 @@
 ; packaging/windows/stage/ before invoking ISCC on this script.
 
 #define MyAppName "bboxAI Desktop"
-#define MyAppVersion "1.2.3"
+#define MyAppVersion "1.2.4"
 #define MyAppPublisher "Zainal Abidin"
 #define MyAppURL "https://github.com/zainalabidin85/bboxAI"
 
@@ -61,7 +61,11 @@ begin
   begin
     DataDir := ExpandConstant('{commonappdata}\bboxai-desktop');
     PurgeArg := '';
-    if MsgBox('Also delete all bboxAI data -- accounts, projects, annotations, and trained models -- stored in:' + #13#10 + DataDir + #13#10#13#10 + 'This cannot be undone. Choose No to keep this data (e.g. to reinstall later without losing it).', mbConfirmation, MB_YESNO) = IDYES then
+    // MB_DEFBUTTON2 makes "No" the default -- matters not just for Enter/Esc,
+    // but because /SUPPRESSMSGBOXES (used by scripted/silent uninstalls)
+    // auto-answers with whichever button is default. Without this, a silent
+    // uninstall would auto-purge all data with no way to opt out.
+    if MsgBox('Also delete all bboxAI data -- accounts, projects, annotations, and trained models -- stored in:' + #13#10 + DataDir + #13#10#13#10 + 'This cannot be undone. Choose No to keep this data (e.g. to reinstall later without losing it).', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
       PurgeArg := ' -Purge';
 
     Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\uninstall.ps1" -AppDir "' + ExpandConstant('{app}') + '" -DataDir "' + DataDir + '"' + PurgeArg, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
