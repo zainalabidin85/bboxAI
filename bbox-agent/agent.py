@@ -62,7 +62,7 @@ def _read_credentials_file() -> dict | None:
 
 
 async def ensure_settings(cfg: dict) -> dict:
-    cfg.setdefault("api_base", os.environ.get("BBOXAI_API_BASE", "http://localhost:8000"))
+    cfg["api_base"] = os.environ.get("BBOXAI_API_BASE", cfg.get("api_base", "http://localhost:8000"))
     cfg["relay_url"] = os.environ.get("BBOXAI_RELAY_URL", cfg.get("relay_url", ""))
 
     # A credentials file always wins over whatever's cached, when present —
