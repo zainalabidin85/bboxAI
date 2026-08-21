@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -39,8 +39,6 @@ class Project(Base):
                                   cascade="all, delete-orphan")
     trained_models = relationship("TrainedModel", back_populates="project",
                                   cascade="all, delete-orphan")
-    uploads        = relationship("Upload", back_populates="project",
-                                  cascade="all, delete-orphan")
 
 
 class BboxClass(Base):
@@ -52,20 +50,6 @@ class BboxClass(Base):
     class_index = Column(Integer, nullable=False)
 
     project = relationship("Project", back_populates="classes")
-
-
-class Upload(Base):
-    __tablename__ = "uploads"
-
-    id         = Column(String(32), primary_key=True)
-    project_id = Column(String(12), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    user_id    = Column(String(36), ForeignKey("users.id"), nullable=True)
-    filename   = Column(String(255))
-    box_count  = Column(Integer, default=0)
-    notes      = Column(Text, default="")
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
-
-    project = relationship("Project", back_populates="uploads")
 
 
 class TrainedModel(Base):

@@ -1,13 +1,14 @@
 import json
 import os
+import shutil
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
-from auth import create_access_token, hash_password, verify_password
-from config import settings
+from auth import create_access_token, get_current_user, hash_password, verify_password
+from config import PROJECTS_DIR, settings
 from database import get_db
 from models import User
 
@@ -74,3 +75,30 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 
     token = create_access_token(user.id)
     return {"access_token": token, "token_type": "bearer", "username": user.username}
+
+
+class DeleteAccountBody(BaseModel):
+    password: str
+
+
+@router.delete("/me", status_code=204)
+def delete_account(
+    body: DeleteAccountBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not verify_password(body.password, current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect password.")
+
+    # Wipe on-disk storage for every owned project before the DB rows go —
+    # same per-project cleanup DELETE /projects/{id} does, just for all of
+    # them at once. The User row's cascade="all, delete-orphan" on `projects`
+    # (see models.py) handles the DB side (projects, classes, trained_models,
+    # uploads) via a single delete.
+    for project in current_user.projects:
+        proj_dir = os.path.join(PROJECTS_DIR, project.id)
+        if os.path.isdir(proj_dir):
+            shutil.rmtree(proj_dir)
+
+    db.delete(current_user)
+    db.commit()

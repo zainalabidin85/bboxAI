@@ -12,6 +12,12 @@ const MAX_AI_ASSIST_EXAMPLES = 5;
 // AI Assist stays disabled until the project has at least this many manually
 // annotated images for it to learn style from.
 const MIN_AI_ASSIST_EXAMPLES = 2;
+// Mirrors bbox-relay's AI_ASSIST_COST_TOKENS (3) x 2 chained calls
+// (suggest + auto-refine) for a from-scratch suggestion, vs. 1 call for a
+// manual "Improve suggestion" re-click — shown so the cost is disclosed
+// before the user clicks, not just deducted silently after.
+const AI_ASSIST_FROM_SCRATCH_COST_TOKENS = 6;
+const AI_ASSIST_IMPROVE_COST_TOKENS = 3;
 
 interface LocationState {
   batchId: string;
@@ -208,11 +214,19 @@ export function AnnotatePage() {
     let accepted = 0;
     let edited = 0;
     let deleted = 0;
+    // Per-box before/after — the correction loop's raw signal, sent
+    // alongside the aggregate counts below rather than replacing them.
+    const corrections: {
+      outcome: "accepted" | "edited" | "deleted";
+      original: Annotation;
+      final?: Annotation;
+    }[] = [];
     for (const aiId of suggestedIds) {
       const original = snapshot[aiId];
       const current = stillPresent.get(aiId);
       if (!current) {
         deleted++;
+        corrections.push({ outcome: "deleted", original });
         continue;
       }
       const unchanged =
@@ -221,8 +235,13 @@ export function AnnotatePage() {
         Math.abs(current.w - original.w) < AI_MATCH_EPSILON &&
         Math.abs(current.h - original.h) < AI_MATCH_EPSILON &&
         current.class_id === original.class_id;
-      if (unchanged) accepted++;
-      else edited++;
+      if (unchanged) {
+        accepted++;
+        corrections.push({ outcome: "accepted", original, final: current });
+      } else {
+        edited++;
+        corrections.push({ outcome: "edited", original, final: current });
+      }
     }
 
     const nextCombo = edited === 0 && deleted === 0 ? aiCombo + 1 : 0;
@@ -235,6 +254,7 @@ export function AnnotatePage() {
     api
       .submitAiAssistFeedback(id, { suggested: suggestedIds.length, accepted, edited, deleted })
       .catch(() => {});
+    api.submitAiAssistCorrections(id, corrections).catch(() => {});
   }
 
   async function onCommit() {
@@ -470,6 +490,11 @@ export function AnnotatePage() {
           >
             {aiBusy ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
             {boxes.length > 0 ? "Improve suggestion" : aiBatchActive ? "AI Assist (active)" : "AI Assist"}
+            {!aiBusy && (
+              <span className="token-cost-badge">
+                {boxes.length > 0 ? AI_ASSIST_IMPROVE_COST_TOKENS : AI_ASSIST_FROM_SCRATCH_COST_TOKENS} tok
+              </span>
+            )}
             {comboPop && (
               <span key={comboPop.key} className="combo-float" onAnimationEnd={() => setComboPop(null)}>
                 <Flame size={12} />

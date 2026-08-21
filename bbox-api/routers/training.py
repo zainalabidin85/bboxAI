@@ -81,8 +81,8 @@ async def upload_image(
 # ── Images (list committed images + their boxes, e.g. for AI-assist few-shot examples) ─
 #
 # Note: committed images are tracked purely on disk (images/{id}{ext} +
-# labels/{id}.txt), same as get_stats() below — the `Upload` DB model exists
-# but nothing currently writes rows into it, so these read from disk instead.
+# labels/{id}.txt), same as get_stats() below — there's no DB-side upload
+# record at all, images are just discovered by listing the directory.
 
 def _parse_label_file(label_path: str, class_names: dict[int, str]) -> list[dict]:
     if not os.path.isfile(label_path):

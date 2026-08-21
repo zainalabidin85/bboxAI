@@ -294,6 +294,23 @@ export async function submitAiAssistFeedback(
   await client.post("/ai-assist/feedback", { project_id: projectId, ...counts });
 }
 
+interface AiAssistBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  class_id: number;
+}
+
+// Correction loop: the actual before/after per box behind the aggregate
+// counts above. `final` is omitted for a deleted box.
+export async function submitAiAssistCorrections(
+  projectId: string,
+  corrections: { outcome: "accepted" | "edited" | "deleted"; original: AiAssistBox; final?: AiAssistBox }[]
+) {
+  await client.post("/ai-assist/corrections", { project_id: projectId, corrections });
+}
+
 export async function initiateTopup(pkg: string, termsAccepted: boolean): Promise<{ checkout_url: string }> {
   const { data } = await client.post("/wallet/topup", { package: pkg, terms_accepted: termsAccepted });
   return data;
