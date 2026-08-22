@@ -22,7 +22,19 @@ export function classColor(classId: number): string {
 // (bbox-app/lib/screens/annotation_screen.dart) to filter out accidental taps.
 const MIN_BOX_FRACTION = 0.04;
 const MAX_WIDTH = 800;
-const HANDLE_HIT = 8; // px tolerance for grabbing a resize handle
+
+// Handle box size, hit-test tolerance, and stroke widths below are all
+// expressed in real on-screen (CSS) pixels, then converted to canvas-space
+// pixels via `scaleRef` (canvas internal resolution / actual displayed CSS
+// width — see draw()). The canvas is downscaled by CSS on narrow viewports
+// (see index.css .bbox-canvas-wrap), so drawing/hit-testing in raw canvas
+// pixels made handles and lines shrink to near-invisible, hard-to-grab sizes
+// on mobile; scaling by this ratio keeps them a consistent real-world size
+// on any screen.
+const HANDLE_SIZE_CSS = 14; // drawn handle box side length
+const HANDLE_HIT_CSS = 22; // touch/pointer hit-test tolerance (bigger than the visible box, for fat fingers)
+const LINE_WIDTH_CSS = 2.5;
+const LINE_WIDTH_SELECTED_CSS = 4;
 
 type HandleKey = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 const HANDLE_KEYS: HandleKey[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
@@ -63,6 +75,10 @@ export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange, processing
   const [pendingRect, setPendingRect] = useState<Annotation | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [cursor, setCursor] = useState("crosshair");
+  // canvas-internal-resolution / actual-displayed-CSS-width — see the
+  // HANDLE_SIZE_CSS comment above. Updated every draw() so hit-testing
+  // (which runs outside draw, on pointer events) always has a fresh value.
+  const scaleRef = useRef(1);
 
   useEffect(() => {
     const img = new Image();
@@ -97,6 +113,13 @@ export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange, processing
     ctx.clearRect(0, 0, size.width, size.height);
     ctx.drawImage(img, 0, 0, size.width, size.height);
 
+    const rect = canvas.getBoundingClientRect();
+    const scale = size.width / (rect.width || size.width);
+    scaleRef.current = scale;
+    const handleSize = HANDLE_SIZE_CSS * scale;
+    const fontSize = 12 * scale;
+    const labelHeight = 16 * scale;
+
     boxes.forEach((b, i) => {
       const color = classColor(b.class_id);
       const x = b.x * size.width;
@@ -106,26 +129,26 @@ export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange, processing
       const selected = i === selectedIndex;
 
       ctx.strokeStyle = color;
-      ctx.lineWidth = selected ? 3 : 2;
+      ctx.lineWidth = (selected ? LINE_WIDTH_SELECTED_CSS : LINE_WIDTH_CSS) * scale;
       ctx.strokeRect(x, y, w, h);
 
       const className = classes.find((c) => c.id === b.class_id)?.name ?? `class ${b.class_id}`;
-      ctx.font = "12px sans-serif";
+      ctx.font = `${fontSize}px sans-serif`;
       const textWidth = ctx.measureText(className).width;
       ctx.fillStyle = color;
-      ctx.fillRect(x, Math.max(0, y - 16), textWidth + 8, 16);
+      ctx.fillRect(x, Math.max(0, y - labelHeight), textWidth + 8 * scale, labelHeight);
       ctx.fillStyle = "#fff";
-      ctx.fillText(className, x + 4, Math.max(12, y - 4));
+      ctx.fillText(className, x + 4 * scale, Math.max(fontSize, y - labelHeight + fontSize));
 
       if (selected) {
         const handles = handlePositions(x, y, w, h);
         ctx.fillStyle = "#ffffff";
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.5 * scale;
         for (const key of HANDLE_KEYS) {
           const { x: hx, y: hy } = handles[key];
-          ctx.fillRect(hx - 4, hy - 4, 8, 8);
-          ctx.strokeRect(hx - 4, hy - 4, 8, 8);
+          ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+          ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
         }
       }
     });
@@ -153,9 +176,10 @@ export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange, processing
   function hitHandle(px: number, py: number, index: number): HandleKey | null {
     const b = boxes[index];
     const handles = handlePositions(b.x * size.width, b.y * size.height, b.w * size.width, b.h * size.height);
+    const hitTolerance = HANDLE_HIT_CSS * scaleRef.current;
     for (const key of HANDLE_KEYS) {
       const { x: hx, y: hy } = handles[key];
-      if (Math.abs(px - hx) <= HANDLE_HIT && Math.abs(py - hy) <= HANDLE_HIT) return key;
+      if (Math.abs(px - hx) <= hitTolerance && Math.abs(py - hy) <= hitTolerance) return key;
     }
     return null;
   }
