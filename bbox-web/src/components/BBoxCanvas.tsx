@@ -285,11 +285,14 @@ export function BBoxCanvas({ imageUrl, classes, boxes, onBoxesChange, processing
   }
 
   return (
-    <div className={"bbox-canvas-wrap" + (processing ? " bbox-canvas-wrap--processing" : "")}>
+    <div
+      className={"bbox-canvas-wrap" + (processing ? " bbox-canvas-wrap--processing" : "")}
+      style={{ maxWidth: size.width }}
+    >
       <canvas
         ref={canvasRef}
         tabIndex={0}
-        style={{ width: size.width, height: size.height, touchAction: "none", cursor, outline: "none" }}
+        style={{ width: "100%", height: "auto", touchAction: "none", cursor, outline: "none", display: "block" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

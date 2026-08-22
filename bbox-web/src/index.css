@@ -755,7 +755,7 @@ input[type="range"] {
 
 .bbox-canvas-wrap {
   position: relative;
-  display: inline-block;
+  width: 100%;
 }
 
 .bbox-canvas-wrap canvas {
