@@ -18,6 +18,11 @@ const MIN_AI_ASSIST_EXAMPLES = 2;
 // before the user clicks, not just deducted silently after.
 const AI_ASSIST_FROM_SCRATCH_COST_TOKENS = 6;
 const AI_ASSIST_IMPROVE_COST_TOKENS = 3;
+// Mirrors bbox-relay's example_ranking.py _PRIOR_MEAN — the score an
+// unscored (no corrections yet) example is treated as when ranking few-shot
+// examples, so it competes on equal footing rather than losing to any
+// proven-decent example by default.
+const DEFAULT_EXAMPLE_SCORE = 0.75;
 
 interface LocationState {
   batchId: string;
@@ -25,6 +30,7 @@ interface LocationState {
 }
 
 interface AiExample {
+  image_id: string;
   image_b64: string;
   boxes: ImageBox[];
 }
@@ -254,7 +260,8 @@ export function AnnotatePage() {
     api
       .submitAiAssistFeedback(id, { suggested: suggestedIds.length, accepted, edited, deleted })
       .catch(() => {});
-    api.submitAiAssistCorrections(id, corrections).catch(() => {});
+    const exampleImageIds = aiBatchExamples?.map((ex) => ex.image_id);
+    api.submitAiAssistCorrections(id, corrections, exampleImageIds).catch(() => {});
   }
 
   async function onCommit() {
@@ -357,16 +364,36 @@ export function AnnotatePage() {
 
   async function gatherExamples(): Promise<AiExample[] | null> {
     if (!id || !projectImages) return null;
-    const withBoxes = projectImages.filter((img) => img.boxes.length > 0).slice(0, MAX_AI_ASSIST_EXAMPLES);
+    const withBoxes = projectImages.filter((img) => img.boxes.length > 0);
     if (withBoxes.length < MIN_AI_ASSIST_EXAMPLES) {
       setError(`Annotate at least ${MIN_AI_ASSIST_EXAMPLES} images manually first so AI Assist has examples to learn from.`);
       return null;
     }
+
+    // Prefer images that have historically led to better AI-assist outcomes
+    // (see bbox-relay's example_ranking.py) over the previous plain
+    // first-N-uploaded selection. Best-effort — an unscored image (no
+    // corrections yet, e.g. every image early on) falls back to
+    // DEFAULT_EXAMPLE_SCORE rather than being treated as bad, so ranking
+    // only ever deprioritizes proven-poor examples, never excludes
+    // unproven ones; a failed ranking fetch degrades to the original
+    // (upload) order for everyone.
+    let ranking: Record<string, { score: number; n: number }> = {};
+    try {
+      ranking = await api.getAiAssistExampleRanking(id);
+    } catch {
+      // fine — selection below just falls back to upload order.
+    }
+    const ranked = [...withBoxes].sort(
+      (a, b) => (ranking[b.image_id]?.score ?? DEFAULT_EXAMPLE_SCORE) - (ranking[a.image_id]?.score ?? DEFAULT_EXAMPLE_SCORE)
+    );
+    const selected = ranked.slice(0, MAX_AI_ASSIST_EXAMPLES);
+
     return Promise.all(
-      withBoxes.map(async (img) => {
+      selected.map(async (img) => {
         const blob = await api.fetchProjectImageBlob(id, img.image_id);
         const image_b64 = await downscaleToBase64Jpeg(blob, undefined, undefined, true);
-        return { image_b64, boxes: img.boxes };
+        return { image_id: img.image_id, image_b64, boxes: img.boxes };
       })
     );
   }

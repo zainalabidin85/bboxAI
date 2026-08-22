@@ -303,12 +303,32 @@ interface AiAssistBox {
 }
 
 // Correction loop: the actual before/after per box behind the aggregate
-// counts above. `final` is omitted for a deleted box.
+// counts above. `final` is omitted for a deleted box. `exampleImageIds` are
+// the project image_ids used as few-shot examples for the batch this frame
+// belongs to — lets the relay attribute outcomes back to specific examples
+// (see example_ranking.py). Omit when unknown (e.g. no examples were sent).
 export async function submitAiAssistCorrections(
   projectId: string,
-  corrections: { outcome: "accepted" | "edited" | "deleted"; original: AiAssistBox; final?: AiAssistBox }[]
+  corrections: { outcome: "accepted" | "edited" | "deleted"; original: AiAssistBox; final?: AiAssistBox }[],
+  exampleImageIds?: string[]
 ) {
-  await client.post("/ai-assist/corrections", { project_id: projectId, corrections });
+  await client.post("/ai-assist/corrections", {
+    project_id: projectId,
+    corrections,
+    example_image_ids: exampleImageIds,
+  });
+}
+
+// Per-example-image quality scores (0-1, Bayesian-smoothed toward a neutral
+// prior) derived from past AI-assist correction outcomes — used to prefer
+// better-performing images as few-shot examples. Empty/missing entries mean
+// "no data yet", not "bad" — callers should treat an unscored image as
+// average, not worst.
+export async function getAiAssistExampleRanking(
+  projectId: string
+): Promise<Record<string, { score: number; n: number }>> {
+  const { data } = await client.get("/ai-assist/example-ranking", { params: { project_id: projectId } });
+  return data.scores;
 }
 
 export async function initiateTopup(pkg: string, termsAccepted: boolean): Promise<{ checkout_url: string }> {
