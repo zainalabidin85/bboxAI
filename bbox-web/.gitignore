@@ -2,4 +2,6 @@ node_modules/
 dist/
 dist-remote/
 .env
+.env.remote
+.env.production
 *.tsbuildinfo
