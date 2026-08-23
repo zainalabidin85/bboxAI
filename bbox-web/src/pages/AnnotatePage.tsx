@@ -456,7 +456,7 @@ export function AnnotatePage() {
     busy || aiBusy || !objectUrl || !projectImages || annotatedCount < MIN_AI_ASSIST_EXAMPLES;
 
   return (
-    <div className="page">
+    <div className="page" style={IS_REMOTE ? { paddingBottom: "calc(var(--space-7) + 88px)" } : undefined}>
       <Link to={`/projects/${id}`} className="back-link">
         <ChevronLeft size={16} />
         Project
@@ -504,7 +504,7 @@ export function AnnotatePage() {
       )}
 
       <div className={IS_REMOTE ? "annotate-actions ios-toolbar" : "annotate-actions"}>
-        {IS_REMOTE && (
+        {!IS_REMOTE && (
           <button
             className="btn-secondary ai-assist-btn"
             onClick={onAiAssistClick}
@@ -534,10 +534,12 @@ export function AnnotatePage() {
           <SkipForward size={16} />
           Skip frame
         </button>
-        <button className="btn-primary" onClick={onCommit} disabled={busy || boxes.length === 0}>
-          <Check size={16} />
-          {index + 1 < frames.length ? "Save & next" : "Save & finish"}
-        </button>
+        {!IS_REMOTE && (
+          <button className="btn-primary" onClick={onCommit} disabled={busy || boxes.length === 0}>
+            <Check size={16} />
+            {index + 1 < frames.length ? "Save & next" : "Save & finish"}
+          </button>
+        )}
       </div>
 
       {IS_REMOTE && aiStatus && (
@@ -545,6 +547,44 @@ export function AnnotatePage() {
           {aiBusy ? <Loader2 size={14} className="spin" /> : <Check size={14} />}
           {aiStatus}
         </p>
+      )}
+
+      {IS_REMOTE && (
+        <div className="annotate-fabs">
+          <button
+            className="fab fab-ai ai-assist-btn"
+            onClick={onAiAssistClick}
+            disabled={aiAssistDisabled}
+            title={
+              projectImages && annotatedCount < MIN_AI_ASSIST_EXAMPLES
+                ? `Annotate at least ${MIN_AI_ASSIST_EXAMPLES} images manually first`
+                : boxes.length > 0
+                ? "Improve suggestion"
+                : "AI Assist"
+            }
+          >
+            {aiBusy ? <Loader2 size={18} className="spin" /> : <Sparkles size={18} />}
+            {!aiBusy && (
+              <span className="token-cost-badge">
+                {boxes.length > 0 ? AI_ASSIST_IMPROVE_COST_TOKENS : AI_ASSIST_FROM_SCRATCH_COST_TOKENS} tok
+              </span>
+            )}
+            {comboPop && (
+              <span key={comboPop.key} className="combo-float" onAnimationEnd={() => setComboPop(null)}>
+                <Flame size={12} />
+                {comboPop.value}x
+              </span>
+            )}
+          </button>
+          <button
+            className="fab fab-save"
+            onClick={onCommit}
+            disabled={busy || boxes.length === 0}
+            title={index + 1 < frames.length ? "Save & next" : "Save & finish"}
+          >
+            <Check size={22} />
+          </button>
+        </div>
       )}
     </div>
   );
