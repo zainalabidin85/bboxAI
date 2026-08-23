@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, ChevronLeft, Check, Flame, Loader2, SkipForward, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowRight, ChevronLeft, Check, Flame, Loader2, SkipForward, Sparkles } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { AiAssistResult, Annotation, ImageBox, PendingFrame, ProjectImage, Project } from "../api/types";
@@ -503,44 +503,18 @@ export function AnnotatePage() {
         </p>
       )}
 
-      <div className={IS_REMOTE ? "annotate-actions ios-toolbar" : "annotate-actions"}>
-        {!IS_REMOTE && (
-          <button
-            className="btn-secondary ai-assist-btn"
-            onClick={onAiAssistClick}
-            disabled={aiAssistDisabled}
-            title={
-              projectImages && annotatedCount < MIN_AI_ASSIST_EXAMPLES
-                ? `Annotate at least ${MIN_AI_ASSIST_EXAMPLES} images manually first`
-                : undefined
-            }
-          >
-            {aiBusy ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-            {boxes.length > 0 ? "Improve suggestion" : aiBatchActive ? "AI Assist (active)" : "AI Assist"}
-            {!aiBusy && (
-              <span className="token-cost-badge">
-                {boxes.length > 0 ? AI_ASSIST_IMPROVE_COST_TOKENS : AI_ASSIST_FROM_SCRATCH_COST_TOKENS} tok
-              </span>
-            )}
-            {comboPop && (
-              <span key={comboPop.key} className="combo-float" onAnimationEnd={() => setComboPop(null)}>
-                <Flame size={12} />
-                {comboPop.value}x
-              </span>
-            )}
+      {!IS_REMOTE && (
+        <div className="annotate-actions">
+          <button className="btn-secondary" onClick={onSkip} disabled={busy}>
+            <SkipForward size={16} />
+            Skip frame
           </button>
-        )}
-        <button className="btn-secondary" onClick={onSkip} disabled={busy}>
-          <SkipForward size={16} />
-          Skip frame
-        </button>
-        {!IS_REMOTE && (
           <button className="btn-primary" onClick={onCommit} disabled={busy || boxes.length === 0}>
             <Check size={16} />
             {index + 1 < frames.length ? "Save & next" : "Save & finish"}
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {IS_REMOTE && aiStatus && (
         <p className="muted" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
@@ -576,13 +550,16 @@ export function AnnotatePage() {
               </span>
             )}
           </button>
+          <button className="fab fab-skip" onClick={onSkip} disabled={busy} title="Skip frame">
+            <SkipForward size={18} />
+          </button>
           <button
             className="fab fab-save"
             onClick={onCommit}
             disabled={busy || boxes.length === 0}
             title={index + 1 < frames.length ? "Save & next" : "Save & finish"}
           >
-            <Check size={22} />
+            {index + 1 < frames.length ? <ArrowRight size={22} /> : <Check size={22} />}
           </button>
         </div>
       )}
