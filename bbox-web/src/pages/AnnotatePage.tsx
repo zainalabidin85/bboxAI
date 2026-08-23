@@ -550,17 +550,19 @@ export function AnnotatePage() {
               </span>
             )}
           </button>
-          <button className="fab fab-skip" onClick={onSkip} disabled={busy} title="Skip frame">
-            <SkipForward size={18} />
-          </button>
-          <button
-            className="fab fab-save"
-            onClick={onCommit}
-            disabled={busy || boxes.length === 0}
-            title={index + 1 < frames.length ? "Save & next" : "Save & finish"}
-          >
-            {index + 1 < frames.length ? <ArrowRight size={22} /> : <Check size={22} />}
-          </button>
+          <div className="annotate-fabs-row">
+            <button className="fab fab-skip" onClick={onSkip} disabled={busy} title="Skip frame">
+              <SkipForward size={14} />
+            </button>
+            <button
+              className="fab fab-save"
+              onClick={onCommit}
+              disabled={busy || boxes.length === 0}
+              title={index + 1 < frames.length ? "Save & next" : "Save & finish"}
+            >
+              {index + 1 < frames.length ? <ArrowRight size={18} /> : <Check size={18} />}
+            </button>
+          </div>
         </div>
       )}
     </div>
