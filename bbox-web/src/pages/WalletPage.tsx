@@ -38,11 +38,12 @@ export function WalletPage() {
 
   useEffect(() => {
     refresh();
-    // Coming back from a payment redirect: the webhook that actually credits
-    // tokens can land a moment after Stripe's redirect does, so re-check once.
-    if (status === "success") {
-      const t = setTimeout(refresh, 3000);
-      return () => clearTimeout(t);
+    // Coming back from a payment redirect: Billplz sends the user back on
+    // status=processing while its callback credits the tokens server-side a
+    // moment later, so re-check a few times before giving up.
+    if (status === "processing" || status === "success") {
+      const timers = [2000, 5000, 10000].map((ms) => setTimeout(refresh, ms));
+      return () => timers.forEach(clearTimeout);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
