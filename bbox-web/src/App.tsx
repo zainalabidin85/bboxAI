@@ -14,6 +14,9 @@ import { AnnotatePage } from "./pages/AnnotatePage";
 // every user downloads just to log in and annotate.
 const TrainPage = lazy(() => import("./pages/TrainPage").then((m) => ({ default: m.TrainPage })));
 const WalletPage = lazy(() => import("./pages/WalletPage").then((m) => ({ default: m.WalletPage })));
+const LiveTestPage = lazy(() =>
+  import("./pages/LiveTestPage").then((m) => ({ default: m.LiveTestPage }))
+);
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
 
@@ -37,6 +40,7 @@ export default function App() {
               <Route path="/projects/:id/annotate" element={<AnnotatePage />} />
               <Route path="/projects/:id/train" element={<TrainPage />} />
               {IS_REMOTE && <Route path="/wallet" element={<WalletPage />} />}
+              {IS_REMOTE && <Route path="/projects/:id/live-test" element={<LiveTestPage />} />}
             </Route>
           </Routes>
         </Suspense>
