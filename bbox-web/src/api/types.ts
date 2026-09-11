@@ -123,6 +123,20 @@ export interface ReportUnlockResult {
   tokens_remaining: number;
 }
 
+// ── Live camera test (bboxai-remote only) ───────────────────────────────────
+
+export interface LiveTestUnlockStatus {
+  training_done: boolean;
+  unlocked: boolean;
+  cost: number;
+}
+
+export interface LiveTestUnlockResult {
+  unlocked: boolean;
+  already_unlocked: boolean;
+  tokens_remaining: number;
+}
+
 export interface AiAssistResult {
   boxes: ImageBox[];
   tokens_remaining: number;

@@ -4,6 +4,8 @@ import type {
   Annotation,
   EpochMetric,
   ImageBox,
+  LiveTestUnlockResult,
+  LiveTestUnlockStatus,
   PendingBatch,
   PendingFrame,
   Project,
@@ -169,6 +171,32 @@ export async function getReportUnlockStatus(projectId: string): Promise<ReportUn
 export async function unlockReport(projectId: string): Promise<ReportUnlockResult> {
   const { data } = await client.post(`/projects/${projectId}/report/unlock`);
   return data;
+}
+
+// Live camera test paywall — remote build only, mirrors the report-unlock
+// shape exactly (see unlockReport above). getLiveTestStatus/unlockLiveTest
+// only exist as routes on bbox-relay, not bbox-api directly — the local
+// build never calls them (gated by IS_REMOTE at the call site).
+export async function getLiveTestStatus(projectId: string): Promise<LiveTestUnlockStatus> {
+  const { data } = await client.get(`/projects/${projectId}/live-test/status`);
+  return data;
+}
+
+export async function unlockLiveTest(projectId: string): Promise<LiveTestUnlockResult> {
+  const { data } = await client.post(`/projects/${projectId}/live-test/unlock`);
+  return data;
+}
+
+// Fetches the ONNX model bytes for client-side inference (not a browser
+// file download like downloadModel() above — this stays in memory and
+// feeds onnxruntime-web directly). bbox-api serves this endpoint always;
+// on the remote build it's transparently gated by bbox-relay based on
+// live-test unlock status before it ever reaches bbox-api.
+export async function fetchLiveTestModel(projectId: string): Promise<ArrayBuffer> {
+  const { data } = await client.get(`/projects/${projectId}/weights/download-onnx`, {
+    responseType: "arraybuffer",
+  });
+  return data as ArrayBuffer;
 }
 
 export function downloadModel(projectId: string) {
