@@ -3,6 +3,7 @@ import os
 import random
 import shutil
 import threading
+import traceback
 from datetime import datetime
 
 from config import PROJECTS_DIR, WEIGHTS_DIR
@@ -273,14 +274,25 @@ def _export_onnx(project_id: str, status: dict):
         if not os.path.exists(best_pt):
             return
 
+        dest = os.path.join(deploy_dir, "model.onnx")
+        # Remove any stale model.onnx from a previous run *before* the risky
+        # export call — if export() throws below, we want a clean 404 for
+        # the live-test feature rather than silently continuing to serve a
+        # wrong-but-present prior-run model.
+        if os.path.exists(dest):
+            os.remove(dest)
+
         model = YOLO(best_pt)
         exported_path = model.export(format="onnx", opset=12, imgsz=320, simplify=True)
 
-        dest = os.path.join(deploy_dir, "model.onnx")
         if exported_path and os.path.abspath(exported_path) != os.path.abspath(dest):
             shutil.move(exported_path, dest)
     except Exception:
-        pass  # ONNX export failure must never crash the training thread
+        # ONNX export failure must never crash the training thread, but unlike
+        # that general convention, this failure has no other visible symptom
+        # (no PDF/DB row absence to notice) until a paying user hits a 404 —
+        # so log it, even though nothing else in this file does.
+        traceback.print_exc()
 
 
 def _generate_report(project_id: str, status: dict):

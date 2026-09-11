@@ -60,3 +60,23 @@ def test_export_onnx_swallows_export_errors(tmp_path, monkeypatch):
 
     with patch("ultralytics.YOLO", return_value=mock_model):
         trainer._export_onnx(project_id, {"state": "done"})  # must not raise
+
+
+def test_export_onnx_removes_stale_model_when_export_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(trainer, "PROJECTS_DIR", str(tmp_path))
+    project_id = "proj999"
+    _write(os.path.join(tmp_path, project_id, "weights", "best.pt"))
+
+    # Simulate a stale model.onnx left over from a previous successful run.
+    stale_dest = os.path.join(tmp_path, project_id, "weights", "model.onnx")
+    _write(stale_dest, b"stale-onnx-from-prior-run")
+    assert os.path.exists(stale_dest)
+
+    mock_model = MagicMock()
+    mock_model.export.side_effect = RuntimeError("export blew up")
+
+    with patch("ultralytics.YOLO", return_value=mock_model):
+        trainer._export_onnx(project_id, {"state": "done"})  # must not raise
+
+    # The stale file must be gone, not left in place serving a wrong model.
+    assert not os.path.exists(stale_dest)
