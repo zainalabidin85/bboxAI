@@ -61,6 +61,7 @@ export function LiveTestPage() {
     async function start() {
       try {
         const project = await api.getProject(id!);
+        if (cancelled) return;
         classNamesRef.current = project.classes.map((c) => c.name);
 
         setStatusText("Requesting camera…");
@@ -68,7 +69,10 @@ export function LiveTestPage() {
           video: { facingMode: "environment" },
           audio: false,
         });
-        if (cancelled) return;
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
 
         const video = videoRef.current!;
         video.srcObject = stream;
