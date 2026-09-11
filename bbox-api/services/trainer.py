@@ -3,6 +3,7 @@ import os
 import random
 import shutil
 import threading
+import traceback
 from datetime import datetime
 
 from config import PROJECTS_DIR, WEIGHTS_DIR
@@ -224,6 +225,7 @@ def _run_training(project_id: str, status: dict, base_model: str, epochs: int, i
             _cancel_flags.discard(project_id)
         _write_status(project_id, status)
         _generate_report(project_id, status)
+        _export_onnx(project_id, status)
         _record_trained_model(project_id, status)
 
 
@@ -251,6 +253,46 @@ def _record_trained_model(project_id: str, status: dict):
             db.close()
     except Exception:
         pass  # DB write failure must never crash the training thread
+
+
+def _export_onnx(project_id: str, status: dict):
+    # Runs once per successful training run, right after best.pt is
+    # deployed — produces a browser-runnable copy of the model for the
+    # on-device "test on live camera" feature (bboxai-remote only; the
+    # paywall around it lives entirely in bbox-relay, not here). Fixed
+    # imgsz=320 regardless of the project's own training imgsz — that's
+    # the size the feasibility spike measured working at usable FPS on a
+    # phone. Failure here must never crash the training thread, same
+    # convention as _generate_report/_record_trained_model below.
+    if status.get("state") != "done":
+        return
+    try:
+        from ultralytics import YOLO
+
+        deploy_dir = _proj(project_id, "weights")
+        best_pt = os.path.join(deploy_dir, "best.pt")
+        if not os.path.exists(best_pt):
+            return
+
+        dest = os.path.join(deploy_dir, "model.onnx")
+        # Remove any stale model.onnx from a previous run *before* the risky
+        # export call — if export() throws below, we want a clean 404 for
+        # the live-test feature rather than silently continuing to serve a
+        # wrong-but-present prior-run model.
+        if os.path.exists(dest):
+            os.remove(dest)
+
+        model = YOLO(best_pt)
+        exported_path = model.export(format="onnx", opset=12, imgsz=320, simplify=True)
+
+        if exported_path and os.path.abspath(exported_path) != os.path.abspath(dest):
+            shutil.move(exported_path, dest)
+    except Exception:
+        # ONNX export failure must never crash the training thread, but unlike
+        # that general convention, this failure has no other visible symptom
+        # (no PDF/DB row absence to notice) until a paying user hits a 404 —
+        # so log it, even though nothing else in this file does.
+        traceback.print_exc()
 
 
 def _generate_report(project_id: str, status: dict):

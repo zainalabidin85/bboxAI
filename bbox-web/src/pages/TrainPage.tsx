@@ -14,6 +14,7 @@ import {
 import { Link, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import type { EpochMetric, ReportUnlockStatus, Stats, TrainingStatus } from "../api/types";
+import { LiveTestCard } from "../components/LiveTestCard";
 import { MetricsChart } from "../components/MetricsChart";
 import { TestModelCard } from "../components/TestModelCard";
 import { useWallet } from "../contexts/WalletContext";
@@ -311,6 +312,7 @@ export function TrainPage() {
       )}
 
       {status?.state === "done" && id && <TestModelCard projectId={id} />}
+      {status?.state === "done" && IS_REMOTE && id && <LiveTestCard projectId={id} />}
 
       {IS_REMOTE && <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Metrics</p>}
       <div className="card">
