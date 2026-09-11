@@ -335,6 +335,24 @@ def download_model(
     return FileResponse(model_path, media_type="application/octet-stream", filename=filename)
 
 
+@router.get("/{project_id}/weights/download-onnx")
+def download_model_onnx(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project_row = db.query(Project).filter(Project.id == project_id).first()
+    if not project_row:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    _require_owner(project_row, current_user)
+
+    model_path = os.path.join(PROJECTS_DIR, project_id, "weights", "model.onnx")
+    if not os.path.exists(model_path):
+        raise HTTPException(status_code=404, detail="ONNX model not available. Complete training first.")
+    filename = f"bboxai_{project_row.name.replace(' ', '_')}_model.onnx"
+    return FileResponse(model_path, media_type="application/octet-stream", filename=filename)
+
+
 # ── Test the deployed model on an ad-hoc image ────────────────────────────────
 #
 # Lets a user sanity-check the trained model without leaving bboxAI — upload
