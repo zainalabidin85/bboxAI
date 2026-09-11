@@ -94,7 +94,7 @@ export async function detectFrame(
   }
   const tensor = new ort.Tensor("float32", chw, [1, 3, IMG_SIZE, IMG_SIZE]);
 
-  const outputs = await session.run({ images: tensor });
+  const outputs = await session.run({ [session.inputNames[0]]: tensor });
   const outputKey = Object.keys(outputs)[0];
   const output = outputs[outputKey];
   const data = output.data as Float32Array;

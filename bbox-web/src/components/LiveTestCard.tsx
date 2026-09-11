@@ -20,7 +20,14 @@ export function LiveTestCard({ projectId }: Props) {
   const { setBalance: setNavBalance } = useWallet();
 
   useEffect(() => {
-    api.getLiveTestStatus(projectId).then(setStatus).catch(() => setStatus(null));
+    setError(null);
+    api
+      .getLiveTestStatus(projectId)
+      .then(setStatus)
+      .catch(() => {
+        setStatus(null);
+        setError("Couldn't load live test status. Reload the page to try again.");
+      });
   }, [projectId]);
 
   async function onUnlock() {

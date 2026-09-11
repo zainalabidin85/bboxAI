@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { AlertCircle, ChevronLeft } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AlertCircle, ChevronLeft, RotateCcw } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import * as api from "../api/client";
 import { classColor } from "../components/BBoxCanvas";
@@ -17,13 +17,17 @@ export function LiveTestPage() {
   const sessionRef = useRef<Awaited<ReturnType<typeof loadSession>>["session"] | null>(null);
   const classNamesRef = useRef<string[]>([]);
   const rafRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const cancelledRef = useRef(false);
   const [statusText, setStatusText] = useState("Requesting camera…");
   const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!id) return;
     let stream: MediaStream | null = null;
     let cancelled = false;
+    cancelledRef.current = false;
 
     function drawDetections(dets: Detection[]) {
       const canvas = canvasRef.current;
@@ -52,10 +56,21 @@ export function LiveTestPage() {
       const video = videoRef.current;
       const offCanvas = offCanvasRef.current;
       if (cancelled || !session || !video || !offCanvas) return;
-      const dets = await detectFrame(session, video, offCanvas);
-      if (cancelled) return;
-      drawDetections(dets);
-      rafRef.current = requestAnimationFrame(loop);
+      try {
+        const dets = await detectFrame(session, video, offCanvas);
+        if (cancelled) return;
+        drawDetections(dets);
+        rafRef.current = requestAnimationFrame(loop);
+      } catch {
+        // Inference threw mid-session (e.g. WebGPU device lost on tab
+        // backgrounding/thermal throttling). Stop the loop rather than
+        // rescheduling — a broken session will just throw again every
+        // frame — and surface it instead of leaving a silently frozen view.
+        if (!cancelled) {
+          setStatusText("");
+          setError("Live detection stopped unexpectedly. Reload to try again.");
+        }
+      }
     }
 
     async function start() {
@@ -69,6 +84,7 @@ export function LiveTestPage() {
           video: { facingMode: "environment" },
           audio: false,
         });
+        streamRef.current = stream;
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -77,6 +93,10 @@ export function LiveTestPage() {
         const video = videoRef.current!;
         video.srcObject = stream;
         await new Promise<void>((resolve) => {
+          if (video.readyState >= 1) {
+            resolve();
+            return;
+          }
           video.onloadedmetadata = () => resolve();
         });
         if (cancelled) return;
@@ -98,11 +118,16 @@ export function LiveTestPage() {
         loop();
       } catch (err: any) {
         if (!cancelled) {
-          setError(
-            err?.name === "NotAllowedError"
-              ? "Camera permission was denied. Allow camera access and reload this page."
-              : err?.message ?? "Failed to start the live test."
-          );
+          setStatusText("");
+          if (err?.name === "NotAllowedError") {
+            setError("Camera permission was denied. Allow camera access and reload this page.");
+          } else if (err?.response?.status === 404) {
+            setError("This model isn't ready for live testing yet. Try retraining the project.");
+          } else if (err?.response?.status === 402) {
+            setError("Live test isn't unlocked for this training run.");
+          } else {
+            setError(err?.message ?? "Failed to start the live test.");
+          }
         }
       }
     }
@@ -111,10 +136,19 @@ export function LiveTestPage() {
 
     return () => {
       cancelled = true;
+      cancelledRef.current = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       stream?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      sessionRef.current = null;
     };
-  }, [id]);
+  }, [id, retryKey]);
+
+  const onRetry = useCallback(() => {
+    setError(null);
+    setStatusText("Requesting camera…");
+    setRetryKey((k) => k + 1);
+  }, []);
 
   return (
     <div className="live-test-page">
@@ -126,10 +160,16 @@ export function LiveTestPage() {
       <canvas ref={canvasRef} className="live-test-canvas" />
       {statusText && <p className="live-test-status">{statusText}</p>}
       {error && (
-        <p className="error live-test-error">
-          <AlertCircle />
-          {error}
-        </p>
+        <div className="live-test-error">
+          <p className="error">
+            <AlertCircle />
+            {error}
+          </p>
+          <button className="btn-secondary" onClick={onRetry}>
+            <RotateCcw size={16} />
+            Retry
+          </button>
+        </div>
       )}
     </div>
   );

@@ -1091,9 +1091,9 @@ progress::-moz-progress-bar {
 /* Live camera test (bboxai-remote only) — full-screen camera + detection
    overlay. See pages/LiveTestPage.tsx. */
 .live-test-page {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
+  position: fixed;
+  inset: 0;
+  z-index: 100; /* above the sticky navbar (z-index: 30) */
   background: #000;
   overflow: hidden;
 }
@@ -1143,4 +1143,13 @@ progress::-moz-progress-bar {
   left: 12px;
   right: 12px;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.live-test-error .error {
+  width: 100%;
+  justify-content: center;
 }
