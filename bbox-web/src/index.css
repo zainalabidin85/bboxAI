@@ -280,6 +280,28 @@ button {
   color: var(--color-text-muted);
 }
 
+/* Desktop-build-only nav link pointing at bboxai-remote.unitani.com — see
+   NavBar.tsx. Ghost-styled (not a filled pill like the token badge below)
+   since it's a static cross-promotion link, not a live value. */
+.navbar-remote-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.navbar-remote-link:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
 .navbar-token-badge {
   position: relative;
   display: inline-flex;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Coins, Scan, LogOut } from "lucide-react";
+import { Coins, Scan, LogOut, Smartphone } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useWallet } from "../contexts/WalletContext";
@@ -53,6 +53,18 @@ export function NavBar() {
           bboxAI
         </Link>
         <div className="navbar-user">
+          {!IS_REMOTE && (
+            <a
+              href="https://bboxai-remote.unitani.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="navbar-remote-link"
+              title="Access this from anywhere — bboxAI Remote"
+            >
+              <Smartphone size={14} />
+              Try Remote
+            </a>
+          )}
           {IS_REMOTE && (
             <Link
               to="/wallet"
