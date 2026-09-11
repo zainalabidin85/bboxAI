@@ -224,6 +224,7 @@ def _run_training(project_id: str, status: dict, base_model: str, epochs: int, i
             _cancel_flags.discard(project_id)
         _write_status(project_id, status)
         _generate_report(project_id, status)
+        _export_onnx(project_id, status)
         _record_trained_model(project_id, status)
 
 
@@ -251,6 +252,35 @@ def _record_trained_model(project_id: str, status: dict):
             db.close()
     except Exception:
         pass  # DB write failure must never crash the training thread
+
+
+def _export_onnx(project_id: str, status: dict):
+    # Runs once per successful training run, right after best.pt is
+    # deployed — produces a browser-runnable copy of the model for the
+    # on-device "test on live camera" feature (bboxai-remote only; the
+    # paywall around it lives entirely in bbox-relay, not here). Fixed
+    # imgsz=320 regardless of the project's own training imgsz — that's
+    # the size the feasibility spike measured working at usable FPS on a
+    # phone. Failure here must never crash the training thread, same
+    # convention as _generate_report/_record_trained_model below.
+    if status.get("state") != "done":
+        return
+    try:
+        from ultralytics import YOLO
+
+        deploy_dir = _proj(project_id, "weights")
+        best_pt = os.path.join(deploy_dir, "best.pt")
+        if not os.path.exists(best_pt):
+            return
+
+        model = YOLO(best_pt)
+        exported_path = model.export(format="onnx", opset=12, imgsz=320, simplify=True)
+
+        dest = os.path.join(deploy_dir, "model.onnx")
+        if exported_path and os.path.abspath(exported_path) != os.path.abspath(dest):
+            shutil.move(exported_path, dest)
+    except Exception:
+        pass  # ONNX export failure must never crash the training thread
 
 
 def _generate_report(project_id: str, status: dict):
