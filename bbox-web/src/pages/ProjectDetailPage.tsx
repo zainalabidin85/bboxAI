@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, ChevronLeft, Film, Loader2, Trash2, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronLeft, Film, Loader2, Trash2, Zap } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import * as api from "../api/client";
-import type { PendingBatch, Project, Stats } from "../api/types";
+import type { PendingBatch, Project, Stats, TrainingStatus } from "../api/types";
 
 const IS_REMOTE = import.meta.env.VITE_REMOTE === "true";
 
@@ -14,6 +14,7 @@ export function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [batches, setBatches] = useState<PendingBatch[]>([]);
+  const [trainingStatus, setTrainingStatus] = useState<TrainingStatus | null>(null);
   const [targetFps, setTargetFps] = useState(1);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export function ProjectDetailPage() {
     setProject(p);
     setStats(s);
     setBatches(b);
+    setTrainingStatus(await api.getTrainingStatus(id));
   }
 
   useEffect(() => {
@@ -194,14 +196,23 @@ export function ProjectDetailPage() {
       </div>
 
       {IS_REMOTE && <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Training</p>}
-      <button
-        className="btn-primary"
-        onClick={() => navigate(`/projects/${id}/train`)}
-        disabled={!canTrain}
-      >
-        <Zap size={16} />
-        Train model
-      </button>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "var(--space-2)" }}>
+        <button
+          className="btn-primary"
+          onClick={() => navigate(`/projects/${id}/train`)}
+          disabled={!canTrain}
+        >
+          <Zap size={16} />
+          {trainingStatus?.state === "done" ? "Detail" : "Train model"}
+        </button>
+        {trainingStatus?.state === "done" && (
+          <span className="status-badge" data-state="done">
+            <CheckCircle2 />
+            Model trained
+            {trainingStatus.map50 != null && ` · mAP50 ${trainingStatus.map50.toFixed(2)}`}
+          </span>
+        )}
+      </div>
       {!canTrain && (
         <p className="muted">Need at least 10 labeled boxes to train (have {stats.total_boxes}).</p>
       )}
