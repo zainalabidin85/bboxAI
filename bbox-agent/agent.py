@@ -202,19 +202,26 @@ async def run_tunnel(cfg: dict) -> None:
 
 async def main() -> None:
     cfg = await ensure_settings(load_config())
-    await ensure_local_token(cfg)
 
-    if not cfg.get("device_id"):
-        await register_with_relay(cfg)
-
+    # Everything below (including the one-time local-login + relay
+    # registration, not just the tunnel loop) is wrapped in one broad
+    # retry — right after a fresh install, bbox-api is still starting up
+    # (slow torch/ultralytics import) when this agent starts alongside it,
+    # so the very first local-login attempt can race it and throw. Letting
+    # any exception here escape kills the whole process; NSSM restarts it,
+    # but with no real backoff, so it can crash-loop indefinitely instead
+    # of just waiting a few seconds for bbox-api to finish starting.
     attempt = 0
     while True:
         try:
+            await ensure_local_token(cfg)
+            if not cfg.get("device_id"):
+                await register_with_relay(cfg)
             await run_tunnel(cfg)
             attempt = 0
-        except (websockets.exceptions.ConnectionClosed, OSError, RuntimeError) as exc:
+        except Exception as exc:
             delay = RECONNECT_BACKOFFS[min(attempt, len(RECONNECT_BACKOFFS) - 1)]
-            print(f"Tunnel disconnected ({exc}); reconnecting in {delay}s...")
+            print(f"Agent error ({exc}); retrying in {delay}s...")
             attempt += 1
             await asyncio.sleep(delay)
 
