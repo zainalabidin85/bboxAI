@@ -3,7 +3,7 @@
 ; packaging/windows/stage/ before invoking ISCC on this script.
 
 #define MyAppName "bboxAI Desktop"
-#define MyAppVersion "1.2.8"
+#define MyAppVersion "1.2.9"
 #define MyAppPublisher "Zainal Abidin"
 #define MyAppURL "https://github.com/zainalabidin85/bboxAI"
 
