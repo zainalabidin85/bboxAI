@@ -1,6 +1,6 @@
 # bboxAI
 
-A multi-class image/video annotation and YOLOv8 training system. Define your own classes, create multiple projects, capture or upload images/video, draw bounding boxes, and train a YOLOv8 model — all through a web UI or a mobile app talking to the same API.
+A multi-class image/video annotation and YOLOv11 training system. Define your own classes, create multiple projects, capture or upload images/video, draw bounding boxes, and train a YOLOv11 model — all through a web UI or a mobile app talking to the same API.
 
 ## Components
 
