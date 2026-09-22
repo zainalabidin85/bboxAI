@@ -81,6 +81,3 @@ flutter pub get
 flutter run
 ```
 
-## Architecture
-
-See [`CLAUDE.md`](./CLAUDE.md) for the full architecture writeup — auth model, project/class data model, video ingestion, training pipeline, and the remote-access (`bbox-agent` + hosted relay) design.
