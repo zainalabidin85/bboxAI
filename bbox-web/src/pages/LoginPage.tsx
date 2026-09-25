@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { AlertCircle, Loader2, LogIn, Lock, Scan } from "lucide-react";
+import { AlertCircle, Download, Loader2, LogIn, Lock, Scan } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -77,6 +77,16 @@ export function LoginPage() {
             {loading ? "Unlocking…" : "Unlock"}
           </button>
         </form>
+
+        <a
+          className="lock-screen-desktop-link"
+          href="https://github.com/zainalabidin85/bboxAI/releases"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Download size={13} />
+          Download bboxAI Desktop
+        </a>
       </div>
     );
   }
