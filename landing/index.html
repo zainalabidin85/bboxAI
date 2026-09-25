@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>bboxAI — Annotate, train, deploy</title>
+  <meta name="description" content="bboxAI lets you label images and video frames, train your own YOLO object detector on your own computer, and reach it from any browser. Free and open source, with optional pay-as-you-go AI tools." />
+  <meta property="og:title" content="bboxAI — Annotate, train, deploy" />
+  <meta property="og:description" content="Label images, train your own YOLO detector on your own machine, and reach it from anywhere." />
+  <meta property="og:image" content="https://i.ytimg.com/vi/zt1S2e83mhs/maxresdefault.jpg" />
+  <style>
+    :root {
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --primary: #af52de;
+      --primary-hover: #9138c2;
+      --primary-soft: rgba(175, 82, 222, 0.12);
+      --accent: #34c759;
+      --bg: #f2f2f7;
+      --surface: #ffffff;
+      --border: rgba(60, 60, 67, 0.13);
+      --text: #1c1c1e;
+      --muted: #6e6e73;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --radius: 20px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --primary: #bf5af2;
+        --primary-hover: #d18af5;
+        --primary-soft: rgba(191, 90, 242, 0.2);
+        --accent: #30d158;
+        --bg: #050506;
+        --surface: #1c1c1f;
+        --border: rgba(255, 255, 255, 0.1);
+        --text: #f5f5f7;
+        --muted: #a1a1a6;
+        --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+    /* Nav */
+    nav {
+      position: sticky; top: 0; z-index: 10;
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      background: color-mix(in srgb, var(--bg) 78%, transparent);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .brand { font-weight: 700; font-size: 1.15rem; color: var(--text); letter-spacing: -0.01em; }
+    .brand span { color: var(--primary); }
+    .nav-links { display: flex; gap: 20px; align-items: center; font-size: 0.95rem; }
+    .nav-links a:not(.btn) { color: var(--muted); }
+    @media (max-width: 640px) { .nav-links a:not(.btn) { display: none; } }
+
+    .btn {
+      display: inline-block; padding: 10px 20px; border-radius: 999px;
+      font-weight: 600; font-size: 0.95rem; border: none; cursor: pointer;
+      transition: background 200ms, transform 200ms;
+    }
+    .btn:hover { text-decoration: none; transform: translateY(-1px); }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-ghost { background: var(--primary-soft); color: var(--primary); }
+    .btn-lg { padding: 14px 28px; font-size: 1.05rem; }
+
+    /* Hero */
+    header.hero { text-align: center; padding: 72px 0 40px; }
+    .eyebrow {
+      display: inline-block; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--primary); background: var(--primary-soft);
+      padding: 6px 12px; border-radius: 999px; margin-bottom: 20px;
+    }
+    h1 {
+      font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.08; margin: 0 0 18px;
+      letter-spacing: -0.03em; font-weight: 800;
+    }
+    h1 .grad {
+      background: linear-gradient(90deg, var(--primary), #ff2d92);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lede { font-size: clamp(1.05rem, 2.4vw, 1.25rem); color: var(--muted); max-width: 640px; margin: 0 auto 28px; }
+    .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* Video (click-to-load, so the YouTube player only loads when wanted) */
+    .video {
+      position: relative; margin: 48px auto 0; max-width: 880px; aspect-ratio: 16 / 9;
+      border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 48px rgba(0,0,0,0.18);
+      background: #000 center / cover no-repeat;
+      background-image: url("https://i.ytimg.com/vi/zt1S2e83mhs/maxresdefault.jpg");
+      cursor: pointer; border: 0; padding: 0; width: 100%; display: block;
+    }
+    .video .play {
+      position: absolute; inset: 0; margin: auto; width: 76px; height: 76px; border-radius: 50%;
+      background: rgba(175, 82, 222, 0.92); display: grid; place-items: center;
+      transition: transform 200ms; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .video:hover .play { transform: scale(1.08); }
+    .video .play svg { margin-left: 5px; }
+    .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .video-caption { text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 12px; }
+
+    /* Sections */
+    section { padding: 72px 0 0; }
+    h2 { font-size: clamp(1.7rem, 4vw, 2.3rem); letter-spacing: -0.02em; margin: 0 0 10px; text-align: center; }
+    .section-lede { color: var(--muted); text-align: center; max-width: 620px; margin: 0 auto 36px; }
+
+    .grid { display: grid; gap: 16px; }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; box-shadow: var(--shadow);
+    }
+    .card h3 { margin: 12px 0 6px; font-size: 1.1rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.97rem; }
+    .icon {
+      width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+      background: var(--primary-soft); color: var(--primary);
+    }
+    .step-num {
+      width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff;
+      display: grid; place-items: center; font-weight: 700;
+    }
+
+    /* Pricing */
+    .price-split { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .price-split .card h3 { margin-top: 0; font-size: 1.25rem; }
+    .tag { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+    .tag-free { background: rgba(52, 199, 89, 0.15); color: var(--accent); }
+    .tag-paid { background: var(--primary-soft); color: var(--primary); }
+    ul.check { list-style: none; padding: 0; margin: 14px 0 0; }
+    ul.check li { padding: 6px 0 6px 28px; position: relative; color: var(--text); }
+    ul.check li::before {
+      content: ""; position: absolute; left: 4px; top: 12px; width: 12px; height: 7px;
+      border-left: 2.5px solid var(--accent); border-bottom: 2.5px solid var(--accent); transform: rotate(-45deg);
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 0.97rem; }
+    th, td { text-align: left; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .fine { color: var(--muted); font-size: 0.88rem; margin-top: 14px; }
+
+    /* Download */
+    .download { text-align: center; }
+    .download .cta-row { margin-top: 8px; }
+
+    footer { margin-top: 88px; padding: 32px 0 48px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 28px; justify-content: space-between; }
+    footer .links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="wrap">
+      <a class="brand" href="#">bbox<span>AI</span></a>
+      <div class="nav-links">
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#download">Download</a>
+        <a class="btn btn-primary" href="https://bboxai-remote.unitani.com">Log in</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="eyebrow">Free &amp; open source · YOLOv8 &amp; YOLO11</div>
+      <h1>Label it. Train it.<br /><span class="grad">Use it anywhere.</span></h1>
+      <p class="lede">
+        bboxAI turns your photos and videos into a custom object detector. Draw boxes around what you
+        want to find, train a YOLO model on your own computer, and pick up your work from any browser.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary btn-lg" href="#download">Download free</a>
+        <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+      </div>
+
+      <button class="video" id="video" type="button" aria-label="Play the bboxAI demo video">
+        <span class="play" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+        </span>
+      </button>
+      <p class="video-caption">Watch bboxAI go from raw images to a trained YOLO11n model running on a phone.</p>
+    </div>
+  </header>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Everything from raw images to a trained model</h2>
+      <p class="section-lede">One tool for the whole object-detection workflow, for any kind of object.</p>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="icon"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="7" height="6" stroke-dasharray="2 2"/></svg></div>
+          <h3>Multi-class annotation</h3>
+          <p>Create projects with your own classes and draw bounding boxes on a phone or desktop browser.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/></svg></div>
+          <h3>Camera, gallery or video</h3>
+          <p>Snap photos, pick from your gallery, or upload a video and bboxAI extracts frames to label.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg></div>
+          <h3>Train YOLO locally</h3>
+          <p>Pick a base model (YOLOv8, YOLO11…), epochs and image size. Watch live training curves, then download the weights and a PDF report.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+          <h3>Remote access</h3>
+          <p>Your data and GPU stay at home. Log in from any browser and reach your desktop securely, with no port forwarding.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg></div>
+          <h3>AI Assist</h3>
+          <p>Let AI suggest boxes from the images you've already labeled. Review, tweak and save, so labeling goes faster.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></div>
+          <h3>Model catalog</h3>
+          <p>Share a trained project publicly, or search what others have trained by class name.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="section-lede">bboxAI runs on your own computer. Remote access is an optional extra layer on top.</p>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="step-num">1</div>
+          <h3>Install bboxai-desktop</h3>
+          <p>Download the installer for Windows or Linux and create your account. Remote access switches on automatically.</p>
+        </div>
+        <div class="card">
+          <div class="step-num">2</div>
+          <h3>Label your images</h3>
+          <p>Create a project, add classes, and annotate photos or video frames on your desktop or phone.</p>
+        </div>
+        <div class="card">
+          <div class="step-num">3</div>
+          <h3>Train and use your model</h3>
+          <p>Start training with one click. When it finishes, check the metrics and download <code>best.pt</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pricing">
+    <div class="wrap">
+      <h2>Free at the core. Pay only for extras.</h2>
+      <p class="section-lede">Everything that runs on your own machine is free forever. Optional AI tools on bboxai-remote use tokens.</p>
+      <div class="price-split">
+        <div class="card">
+          <h3>bboxai-desktop <span class="tag tag-free">FREE</span></h3>
+          <ul class="check">
+            <li>Unlimited projects, classes and images</li>
+            <li>Image, gallery and video-frame annotation</li>
+            <li>YOLOv8 / YOLO11 training on your own hardware</li>
+            <li>Training curves, free PDF report, weights download</li>
+            <li>Remote browser access to your desktop</li>
+            <li>Open source (MIT licence)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Token extras <span class="tag tag-paid">PAY AS YOU GO</span></h3>
+          <table>
+            <thead><tr><th>Feature</th><th class="num">Tokens</th></tr></thead>
+            <tbody>
+              <tr><td>AI Assist (suggest + auto-refine)</td><td class="num">6</td></tr>
+              <tr><td>Improve suggestion</td><td class="num">3</td></tr>
+              <tr><td>Detailed training report (per run)</td><td class="num">20</td></tr>
+              <tr><td>Live camera model test (per run)</td><td class="num">50</td></tr>
+            </tbody>
+          </table>
+          <table>
+            <thead><tr><th>Token pack</th><th class="num">Price</th></tr></thead>
+            <tbody>
+              <tr><td>100 tokens</td><td class="num">RM15</td></tr>
+              <tr><td>200 tokens</td><td class="num">RM19</td></tr>
+              <tr><td>300 tokens</td><td class="num">RM29</td></tr>
+              <tr><td>500 tokens</td><td class="num">RM49</td></tr>
+              <tr><td>1000 tokens</td><td class="num">RM89</td></tr>
+            </tbody>
+          </table>
+          <p class="fine">New accounts get 10 free tokens. Tokens are only deducted when an AI Assist call succeeds. Payments are processed securely by Billplz.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="download" class="download">
+    <div class="wrap">
+      <h2>Get started in minutes</h2>
+      <p class="section-lede">Install bboxai-desktop and create your account. Then log in from anywhere.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary btn-lg" href="https://github.com/zainalabidin85/bboxAI/releases/latest">Download for Windows / Linux</a>
+        <a class="btn btn-ghost btn-lg" href="https://bboxai-remote.unitani.com">Log in to bboxai-remote</a>
+      </div>
+      <p class="fine">Already installed? Use the same username and password you registered on your desktop.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div>© 2026 Zainal Abidin · bboxAI</div>
+      <div class="links">
+        <a href="terms.html">Terms &amp; Conditions</a>
+        <a href="refund.html">Refund policy</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="mailto:admin@unitani.com">Contact</a>
+        <a href="https://github.com/zainalabidin85/bboxAI">GitHub</a>
+        <a href="https://youtu.be/zt1S2e83mhs">YouTube</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Swap the thumbnail for the real player only on click, so YouTube's ~1 MB of scripts
+    // isn't loaded for visitors who never press play.
+    document.getElementById("video").addEventListener("click", function () {
+      var iframe = document.createElement("iframe");
+      iframe.src = "https://www.youtube-nocookie.com/embed/zt1S2e83mhs?autoplay=1&rel=0";
+      iframe.title = "bboxAI demo";
+      iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+      iframe.allowFullscreen = true;
+      this.replaceChildren(iframe);
+      this.style.cursor = "default";
+    }, { once: true });
+  </script>
+</body>
+</html>
