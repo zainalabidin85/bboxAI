@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/screenshot.png" alt="Screenshot" width="600">
+  <img src="assets/screenshot.png" alt="Screenshot" width="900">
 </p>
 
 # bboxAI
