@@ -171,7 +171,7 @@
         <a href="#how">How it works</a>
         <a href="#pricing">Pricing</a>
         <a href="#download">Download</a>
-        <a class="btn btn-primary" href="https://bboxai-remote.unitani.com">Log in</a>
+        <a class="btn btn-primary login-link" href="/login">Log in</a>
       </div>
     </div>
   </nav>
@@ -310,7 +310,7 @@
       <p class="section-lede">Install bboxai-desktop and create your account. Then log in from anywhere.</p>
       <div class="cta-row">
         <a class="btn btn-primary btn-lg" href="https://github.com/zainalabidin85/bboxAI/releases/latest">Download for Windows / Linux</a>
-        <a class="btn btn-ghost btn-lg" href="https://bboxai-remote.unitani.com">Log in to bboxai-remote</a>
+        <a class="btn btn-ghost btn-lg login-link" href="/login">Log in to bboxai-remote</a>
       </div>
       <p class="fine">Already installed? Use the same username and password you registered on your desktop.</p>
     </div>
@@ -331,6 +331,17 @@
   </footer>
 
   <script>
+    // This page is served at bboxai-remote's "/" (the app lives on every other path, same
+    // origin), so an existing app session is visible here — send those users straight in.
+    try {
+      if (localStorage.getItem("bboxai_token")) {
+        document.querySelectorAll(".login-link").forEach(function (a) {
+          a.href = "/projects";
+          a.textContent = "Open app";
+        });
+      }
+    } catch (e) {}
+
     // Swap the thumbnail for the real player only on click, so YouTube's ~1 MB of scripts
     // isn't loaded for visitors who never press play.
     document.getElementById("video").addEventListener("click", function () {
