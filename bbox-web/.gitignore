@@ -4,4 +4,5 @@ dist-remote/
 .env
 .env.remote
 .env.production
+.env.local
 *.tsbuildinfo
