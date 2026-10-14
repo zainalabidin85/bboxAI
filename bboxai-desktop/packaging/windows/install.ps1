@@ -35,6 +35,12 @@ Write-Host "==> Checking for Python 3.11+"
 # a venv built from it). Resolve to a real, absolute exe path instead of an
 # ambient PATH lookup, so venv creation can't silently pick the stub back up.
 function Get-RealPython311 {
+    # A machine-wide install (python.org "for all users", or the winget
+    # fallback below) registers here. Checked first because a fresh winget
+    # install isn't on this process's PATH yet.
+    $regPath = (Get-ItemProperty "HKLM:\SOFTWARE\Python\PythonCore\3.11\InstallPath" -ErrorAction SilentlyContinue).ExecutablePath
+    if ($regPath -and (Test-Path $regPath)) { return $regPath }
+
     foreach ($cmd in @("py", "python")) {
         $info = Get-Command $cmd -ErrorAction SilentlyContinue
         if (-not $info -or $info.Source -match "WindowsApps") { continue }
@@ -43,9 +49,12 @@ function Get-RealPython311 {
             $verOut = & $info.Source $verArgs 2>&1
             if ($verOut -match "Python 3\.(\d+)" -and [int]$Matches[1] -ge 11) {
                 if ($cmd -eq "py") {
-                    # resolve py -3.11's actual target interpreter path
+                    # resolve py -3.11's actual target interpreter path --
+                    # the py launcher itself is real, but it happily targets
+                    # a Store-installed 3.11, so the result needs the same
+                    # WindowsApps check
                     $realPath = (& $info.Source "-3.11" "-c" "import sys; print(sys.executable)").Trim()
-                    if ($realPath -and (Test-Path $realPath)) { return $realPath }
+                    if ($realPath -and $realPath -notmatch "WindowsApps" -and (Test-Path $realPath)) { return $realPath }
                 } else {
                     return $info.Source
                 }
@@ -58,13 +67,27 @@ function Get-RealPython311 {
 $pythonExe = Get-RealPython311
 if (-not $pythonExe) {
     Write-Host "    No suitable Python found -- installing Python 3.11 via winget"
-    winget install --id Python.Python.3.11 -e --silent --accept-package-agreements --accept-source-agreements
+    # --scope machine: a per-user install lands in the installing admin's
+    # profile, not somewhere the services are meant to depend on
+    winget install --id Python.Python.3.11 -e --scope machine --silent --accept-package-agreements --accept-source-agreements
     $pythonExe = Get-RealPython311
     if (-not $pythonExe) { throw "Python 3.11 install via winget did not produce a usable interpreter" }
 }
 Write-Host "    Using: $pythonExe"
 
+# A venv an earlier install built from the Store stub can never launch as a
+# service, and the Test-Path checks below would otherwise keep it forever --
+# so re-running the installer couldn't repair it.
+function Remove-StoreVenv($dir) {
+    $cfg = Join-Path $dir "pyvenv.cfg"
+    if ((Test-Path $cfg) -and ((Get-Content $cfg -Raw) -match "WindowsApps")) {
+        Write-Host "    $dir was built from the Windows Store Python -- rebuilding it"
+        Remove-Item -Recurse -Force $dir
+    }
+}
+
 Write-Host "==> Setting up bbox-api venv"
+Remove-StoreVenv $VenvDir
 if (-not (Test-Path $VenvDir)) {
     & $pythonExe "-m" "venv" $VenvDir
 }
@@ -164,6 +187,7 @@ if ($verifyHosts -notmatch '(?m)^127\.0\.0\.1\s+bboxai\s*$') {
 }
 
 Write-Host "==> Setting up bbox-agent (tunnels to $RelayUrl for remote access)"
+Remove-StoreVenv $AgentVenvDir
 if (-not (Test-Path $AgentVenvDir)) {
     & $pythonExe "-m" "venv" $AgentVenvDir
 }
