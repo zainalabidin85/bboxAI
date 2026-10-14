@@ -143,7 +143,12 @@ reading before re-deriving them:
   NSSM gives back is nowhere near obvious about why. `install.ps1`'s
   `Get-RealPython311` explicitly detects and rejects `WindowsApps` matches
   and resolves to a real, absolute interpreter path, falling back to
-  installing Python 3.11 via `winget` if nothing else qualifies.
+  installing Python 3.11 machine-wide via `winget` if nothing else
+  qualifies. Note the `py` launcher is *not* a stub itself but will still
+  target a Store-installed 3.11 (`py -0p` shows a `WindowsApps` path), so
+  the path `py -3.11` resolves to gets the same check. On re-run, a venv
+  whose `pyvenv.cfg` points at `WindowsApps` (built by an older installer)
+  is deleted and rebuilt rather than kept.
 - **`psycopg2-binary` fails to build** ("`pg_config` executable not found")
   on newer Python versions that don't have a prebuilt wheel for it yet. It's
   a Postgres driver — completely unneeded on Windows since this uses SQLite
