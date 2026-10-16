@@ -10,8 +10,8 @@ import { useWallet } from "../contexts/WalletContext";
 // same flat accent blue.
 const TIER_GRADIENTS = [
   "linear-gradient(135deg, #30d158, #00c7be)",
-  "linear-gradient(135deg, #af52de, #bf5af2)",
-  "linear-gradient(135deg, #bf5af2, #ff375f)",
+  "linear-gradient(135deg, #0b7373, #0e8f8f)",
+  "linear-gradient(135deg, #0a7ea4, #0a84ff)",
   "linear-gradient(135deg, #ff9f0a, #ff6300)",
   "linear-gradient(135deg, #ffd60a, #ff375f)",
 ];

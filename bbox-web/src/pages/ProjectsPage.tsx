@@ -14,10 +14,10 @@ const TILE_GRADIENTS = [
   "linear-gradient(135deg, #ff9f0a, #ff6300)",
   "linear-gradient(135deg, #ffd60a, #ff9f0a)",
   "linear-gradient(135deg, #30d158, #00c7be)",
-  "linear-gradient(135deg, #bf5af2, #ff375f)",
-  "linear-gradient(135deg, #af52de, #ff2d55)",
+  "linear-gradient(135deg, #0e8f8f, #0a7ea4)",
+  "linear-gradient(135deg, #0a84ff, #5ac8fa)",
   "linear-gradient(135deg, #ff375f, #ff9f0a)",
-  "linear-gradient(135deg, #d158e0, #af52de)",
+  "linear-gradient(135deg, #0b7373, #30d158)",
   "linear-gradient(135deg, #ff6300, #ffd60a)",
 ];
 

@@ -260,7 +260,7 @@ export function TrainPage() {
               </button>
               {reportStatus?.unlocked ? (
                 <button className="ios-list-row ios-list-row--button" onClick={() => id && api.downloadReport(id)}>
-                  <span className="ios-list-row-icon" style={{ background: "linear-gradient(135deg, #af52de, #bf5af2)" }}>
+                  <span className="ios-list-row-icon" style={{ background: "linear-gradient(135deg, #0b7373, #0e8f8f)" }}>
                     <FileText size={16} strokeWidth={2.25} />
                   </span>
                   <span className="ios-list-row-body">
@@ -270,7 +270,7 @@ export function TrainPage() {
                 </button>
               ) : (
                 <button className="ios-list-row ios-list-row--button" onClick={onUnlockReport} disabled={unlocking || !reportStatus}>
-                  <span className="ios-list-row-icon" style={{ background: "linear-gradient(135deg, #af52de, #bf5af2)" }}>
+                  <span className="ios-list-row-icon" style={{ background: "linear-gradient(135deg, #0b7373, #0e8f8f)" }}>
                     <FileText size={16} strokeWidth={2.25} />
                   </span>
                   <span className="ios-list-row-body">
