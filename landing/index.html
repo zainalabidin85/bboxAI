@@ -11,9 +11,11 @@
   <style>
     :root {
       --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      --primary: #af52de;
-      --primary-hover: #9138c2;
-      --primary-soft: rgba(175, 82, 222, 0.12);
+      --primary: #0e8f8f;
+      --primary-hover: #0b7373;
+      --primary-soft: rgba(14, 143, 143, 0.12);
+      --on-primary: #ffffff;
+      --primary-end: #0a7ea4;
       --accent: #34c759;
       --bg: #f2f2f7;
       --surface: #ffffff;
@@ -25,9 +27,11 @@
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --primary: #bf5af2;
-        --primary-hover: #d18af5;
-        --primary-soft: rgba(191, 90, 242, 0.2);
+        --primary: #2ec4c4;
+        --primary-hover: #5ad8d8;
+        --primary-soft: rgba(46, 196, 196, 0.2);
+        --on-primary: #03201f;
+        --primary-end: #5ad8f0;
         --accent: #30d158;
         --bg: #050506;
         --surface: #1c1c1f;
@@ -72,7 +76,7 @@
       transition: background 200ms, transform 200ms;
     }
     .btn:hover { text-decoration: none; transform: translateY(-1px); }
-    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary { background: var(--primary); color: var(--on-primary); }
     .btn-primary:hover { background: var(--primary-hover); }
     .btn-ghost { background: var(--primary-soft); color: var(--primary); }
     .btn-lg { padding: 14px 28px; font-size: 1.05rem; }
@@ -89,7 +93,7 @@
       letter-spacing: -0.03em; font-weight: 800;
     }
     h1 .grad {
-      background: linear-gradient(90deg, var(--primary), #ff2d92);
+      background: linear-gradient(90deg, var(--primary), var(--primary-end));
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
     .lede { font-size: clamp(1.05rem, 2.4vw, 1.25rem); color: var(--muted); max-width: 640px; margin: 0 auto 28px; }
@@ -105,7 +109,7 @@
     }
     .video .play {
       position: absolute; inset: 0; margin: auto; width: 76px; height: 76px; border-radius: 50%;
-      background: rgba(175, 82, 222, 0.92); display: grid; place-items: center;
+      background: rgba(14, 143, 143, 0.92); display: grid; place-items: center;
       transition: transform 200ms; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
     }
     .video:hover .play { transform: scale(1.08); }
@@ -131,7 +135,7 @@
       background: var(--primary-soft); color: var(--primary);
     }
     .step-num {
-      width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff;
+      width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: var(--on-primary);
       display: grid; place-items: center; font-weight: 700;
     }
 

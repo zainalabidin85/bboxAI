@@ -1,6 +1,6 @@
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --primary: #af52de;
+  --primary: #0e8f8f;
   --bg: #f2f2f7;
   --surface: #ffffff;
   --border: rgba(60, 60, 67, 0.13);
@@ -9,7 +9,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --primary: #bf5af2;
+    --primary: #2ec4c4;
     --bg: #050506;
     --surface: #1c1c1f;
     --border: rgba(255, 255, 255, 0.1);
