@@ -105,6 +105,8 @@ export interface TokenPackage {
 export interface WalletInfo {
   balance: number;
   packages: Record<string, TokenPackage>;
+  // toyyibPay FPX fee the customer pays on top of each package price
+  payment_fee_cents: number;
   welcome_bonus_granted: boolean;
   terms_accepted: boolean;
   terms_version: string;

@@ -16,6 +16,10 @@ const TIER_GRADIENTS = [
   "linear-gradient(135deg, #ffd60a, #ff375f)",
 ];
 
+function formatRM(cents: number): string {
+  return `RM${(cents / 100).toFixed(2)}`;
+}
+
 export function WalletPage() {
   const [params] = useSearchParams();
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
@@ -24,7 +28,11 @@ export function WalletPage() {
   const [termsChecked, setTermsChecked] = useState(false);
   const { setBalance: setNavBalance } = useWallet();
 
-  const status = params.get("status");
+  // toyyibPay returns the user to /wallet?status_id=1|2|3|4&billcode=...
+  // (1 success, 2/4 pending, 3 failed); `status` is the older Stripe/Billplz form.
+  const TOYYIBPAY_STATUS: Record<string, string> = { "1": "success", "2": "processing", "3": "failed", "4": "processing" };
+  const statusId = params.get("status_id");
+  const status = statusId ? TOYYIBPAY_STATUS[statusId] ?? null : params.get("status");
 
   async function refresh() {
     try {
@@ -38,9 +46,9 @@ export function WalletPage() {
 
   useEffect(() => {
     refresh();
-    // Coming back from a payment redirect: Billplz sends the user back on
-    // status=processing while its callback credits the tokens server-side a
-    // moment later, so re-check a few times before giving up.
+    // Coming back from a payment redirect: the provider's server-side
+    // callback credits the tokens a moment after the user lands here, so
+    // re-check a few times before giving up.
     if (status === "processing" || status === "success") {
       const timers = [2000, 5000, 10000].map((ms) => setTimeout(refresh, ms));
       return () => timers.forEach(clearTimeout);
@@ -79,6 +87,7 @@ export function WalletPage() {
         <p className="muted">Payment processing — your balance will update once it's confirmed.</p>
       )}
       {status === "cancelled" && <p className="muted">Checkout cancelled — no charge was made.</p>}
+      {status === "failed" && <p className="muted">Payment was not successful — you were not charged.</p>}
 
       {wallet?.welcome_bonus_granted && (
         <p className="wallet-welcome-banner">
@@ -141,6 +150,12 @@ export function WalletPage() {
       {wallet && (
         <>
           <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Buy tokens</p>
+          {wallet.payment_fee_cents > 0 && (
+            <p className="muted">
+              Paid by FPX online banking. toyyibPay adds a {formatRM(wallet.payment_fee_cents)} FPX fee to each
+              payment, paid by you, shown as "Admin Fee" at checkout.
+            </p>
+          )}
           <div className="ios-list">
             {Object.entries(wallet.packages).map(([packageId, pkg], i) => (
               <button
@@ -155,6 +170,12 @@ export function WalletPage() {
                 </span>
                 <span className="ios-list-row-body">
                   <span className="ios-list-row-title">{pkg.label}</span>
+                  {wallet.payment_fee_cents > 0 && (
+                    <span className="ios-list-row-subtitle">
+                      + {formatRM(wallet.payment_fee_cents)} FPX fee · you pay{" "}
+                      {formatRM(pkg.amount_cents + wallet.payment_fee_cents)}
+                    </span>
+                  )}
                 </span>
                 {busyPackage === packageId ? (
                   <Loader2 size={16} className="spin" />
