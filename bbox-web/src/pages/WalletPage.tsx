@@ -153,7 +153,7 @@ export function WalletPage() {
           {wallet.payment_fee_cents > 0 && (
             <p className="muted">
               Paid by FPX online banking. toyyibPay adds a {formatRM(wallet.payment_fee_cents)} FPX fee to each
-              payment, paid by you (toyyibPay's checkout page labels it "Admin Fee").
+              payment, paid by you, shown as "Admin Fee" at checkout.
             </p>
           )}
           <div className="ios-list">
