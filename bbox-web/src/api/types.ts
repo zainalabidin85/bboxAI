@@ -109,6 +109,8 @@ export interface WalletInfo {
   payment_fee_cents: number;
   welcome_bonus_granted: boolean;
   terms_accepted: boolean;
+  // Where toyyibPay emails the payment receipt; null before the first purchase
+  receipt_email: string | null;
   terms_version: string;
   terms_text: string[];
 }

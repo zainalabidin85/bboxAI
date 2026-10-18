@@ -26,6 +26,7 @@ export function WalletPage() {
   const [busyPackage, setBusyPackage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [termsChecked, setTermsChecked] = useState(false);
+  const [receiptEmail, setReceiptEmail] = useState("");
   const { setBalance: setNavBalance } = useWallet();
 
   // toyyibPay returns the user to /wallet?status_id=1|2|3|4&billcode=...
@@ -38,6 +39,8 @@ export function WalletPage() {
     try {
       const data = await api.getWallet();
       setWallet(data);
+      // Pre-fill from the last purchase, without clobbering what the user is typing
+      if (data.receipt_email) setReceiptEmail((cur) => cur || data.receipt_email!);
       setNavBalance(data.balance); // keep the nav badge in sync
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Failed to load wallet.");
@@ -60,7 +63,11 @@ export function WalletPage() {
     setBusyPackage(packageId);
     setError(null);
     try {
-      const { checkout_url } = await api.initiateTopup(packageId, wallet?.terms_accepted || termsChecked);
+      const { checkout_url } = await api.initiateTopup(
+        packageId,
+        wallet?.terms_accepted || termsChecked,
+        receiptEmail.trim()
+      );
       window.location.href = checkout_url;
     } catch (err: any) {
       setError(err?.response?.data?.detail ?? "Failed to start checkout.");
@@ -72,7 +79,9 @@ export function WalletPage() {
   // recorded acceptance for this account — checked once ever, not on every
   // visit (see bbox-relay's wallet.has_accepted_terms).
   const needsTermsGate = wallet != null && !wallet.terms_accepted;
-  const canBuy = !needsTermsGate || termsChecked;
+  // Loose check, mirrors bbox-relay's wallet.normalize_email
+  const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(receiptEmail.trim());
+  const canBuy = (!needsTermsGate || termsChecked) && emailValid;
 
   return (
     <div className="page">
@@ -149,6 +158,20 @@ export function WalletPage() {
 
       {wallet && (
         <>
+          <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Receipt email</p>
+          <div className="card wallet-receipt-email">
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              aria-label="Receipt email"
+              value={receiptEmail}
+              onChange={(e) => setReceiptEmail(e.target.value)}
+            />
+            <p className="muted">toyyibPay will email your payment receipt to this address.</p>
+          </div>
+
           <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Buy tokens</p>
           {wallet.payment_fee_cents > 0 && (
             <p className="muted">
@@ -163,7 +186,13 @@ export function WalletPage() {
                 className="ios-list-row ios-list-row--button"
                 onClick={() => onBuy(packageId)}
                 disabled={busyPackage !== null || !canBuy}
-                title={!canBuy ? "Agree to the Terms & Conditions above first" : undefined}
+                title={
+                  !canBuy
+                    ? !emailValid
+                      ? "Enter your receipt email above first"
+                      : "Agree to the Terms & Conditions above first"
+                    : undefined
+                }
               >
                 <span className="ios-list-row-icon" style={{ background: TIER_GRADIENTS[i % TIER_GRADIENTS.length] }}>
                   <Coins size={16} strokeWidth={2.25} />

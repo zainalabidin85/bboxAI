@@ -359,8 +359,12 @@ export async function getAiAssistExampleRanking(
   return data.scores;
 }
 
-export async function initiateTopup(pkg: string, termsAccepted: boolean): Promise<{ checkout_url: string }> {
-  const { data } = await client.post("/wallet/topup", { package: pkg, terms_accepted: termsAccepted });
+export async function initiateTopup(
+  pkg: string,
+  termsAccepted: boolean,
+  email: string
+): Promise<{ checkout_url: string }> {
+  const { data } = await client.post("/wallet/topup", { package: pkg, terms_accepted: termsAccepted, email });
   return data;
 }
 

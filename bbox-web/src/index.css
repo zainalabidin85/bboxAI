@@ -393,6 +393,15 @@ button {
   margin-top: var(--space-4);
 }
 
+.wallet-receipt-email input {
+  width: 100%;
+}
+
+.wallet-receipt-email p {
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+}
+
 .wallet-terms-list {
   margin: 0 0 var(--space-3);
   padding-left: var(--space-5);
