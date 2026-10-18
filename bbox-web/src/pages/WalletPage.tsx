@@ -175,7 +175,7 @@ export function WalletPage() {
           <p className="ios-section-caption" style={{ marginTop: "var(--space-5)" }}>Buy tokens</p>
           {wallet.payment_fee_cents > 0 && (
             <p className="muted">
-              Paid by FPX online banking. toyyibPay adds a {formatRM(wallet.payment_fee_cents)} FPX fee to each
+              Paid by FPX online banking. toyyibPay adds a {formatRM(wallet.payment_fee_cents)} FPX admin fee to each
               payment, paid by you, shown as "Admin Fee" at checkout.
             </p>
           )}
@@ -201,7 +201,7 @@ export function WalletPage() {
                   <span className="ios-list-row-title">{pkg.label}</span>
                   {wallet.payment_fee_cents > 0 && (
                     <span className="ios-list-row-subtitle">
-                      + {formatRM(wallet.payment_fee_cents)} FPX fee · you pay{" "}
+                      + {formatRM(wallet.payment_fee_cents)} FPX admin fee · you pay{" "}
                       {formatRM(pkg.amount_cents + wallet.payment_fee_cents)}
                     </span>
                   )}
