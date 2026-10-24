@@ -1,9 +1,10 @@
 ; bboxai-desktop Windows installer.
-; Built by build.ps1, which stages bbox-api/bbox-web-dist/nssm.exe into
+; Built by build.ps1, which stages bbox-api/bbox-web-dist/nssm.exe and the
+; bundled Python into
 ; packaging/windows/stage/ before invoking ISCC on this script.
 
 #define MyAppName "bboxAI Desktop"
-#define MyAppVersion "1.2.9"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "Zainal Abidin"
 #define MyAppURL "https://github.com/zainalabidin85/bboxAI"
 
@@ -30,6 +31,7 @@ SetupIconFile=assets\bboxai.ico
 Source: "stage\bbox-api\*"; DestDir: "{app}\bbox-api"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "stage\bbox-agent\*"; DestDir: "{app}\bbox-agent"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "stage\bbox-web-dist\*"; DestDir: "{app}\bbox-web-dist"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "stage\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "stage\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "install.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
@@ -49,6 +51,18 @@ Filename: "powershell.exe"; \
 Filename: "http://localhost:8321"; Description: "Open bboxAI Desktop"; Flags: postinstall shellexec skipifsilent nowait
 
 [Code]
+// On an upgrade the running services hold {app}\python's DLLs (and the
+// venvs' python.exe) open, so copying the new files over them would fail or
+// demand a reboot. Stop them first; install.ps1 restarts them. Harmless on a
+// fresh install, where the services don't exist yet.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec('powershell.exe', '-NoProfile -Command "Stop-Service -Name bboxai-api,bboxai-agent -Force -ErrorAction SilentlyContinue"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;
+
 // Uninstall.ps1 only deletes the app's data directory (accounts, project
 // storage, trained weights, the Python venvs) when passed -Purge, and
 // nothing here did that automatically -- a plain uninstall silently left

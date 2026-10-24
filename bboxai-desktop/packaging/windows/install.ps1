@@ -9,6 +9,7 @@ $ErrorActionPreference = "Stop"
 $ApiDir       = Join-Path $AppDir "bbox-api"
 $AgentDir     = Join-Path $AppDir "bbox-agent"
 $NssmExe      = Join-Path $AppDir "nssm.exe"
+$PythonDir    = Join-Path $AppDir "python"
 $VenvDir      = Join-Path $DataDir "venv"
 $AgentVenvDir = Join-Path $DataDir "agent-venv"
 $StorageDir   = Join-Path $DataDir "storage"
@@ -27,47 +28,49 @@ function Test-Command($name) {
     return [bool](Get-Command $name -ErrorAction SilentlyContinue)
 }
 
-Write-Host "==> Checking for Python 3.11+"
-# Reject the Windows Store "app execution alias" stub
-# (%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe) -- it only works for the
-# interactive user who triggered it; a LocalSystem service can't access it
-# at all ("file cannot be accessed by the system" when nssm tries to launch
-# a venv built from it). Resolve to a real, absolute exe path instead of an
-# ambient PATH lookup, so venv creation can't silently pick the stub back up.
-function Get-RealPython311 {
-    foreach ($cmd in @("py", "python")) {
-        $info = Get-Command $cmd -ErrorAction SilentlyContinue
-        if (-not $info -or $info.Source -match "WindowsApps") { continue }
-        $verArgs = if ($cmd -eq "py") { @("-3.11", "--version") } else { @("--version") }
-        try {
-            $verOut = & $info.Source $verArgs 2>&1
-            if ($verOut -match "Python 3\.(\d+)" -and [int]$Matches[1] -ge 11) {
-                if ($cmd -eq "py") {
-                    # resolve py -3.11's actual target interpreter path
-                    $realPath = (& $info.Source "-3.11" "-c" "import sys; print(sys.executable)").Trim()
-                    if ($realPath -and (Test-Path $realPath)) { return $realPath }
-                } else {
-                    return $info.Source
-                }
-            }
-        } catch {}
-    }
-    return $null
-}
+Write-Host "==> Using bundled Python"
+# build.ps1 ships a private interpreter in {app}\python -- never the user's
+# own Python, which may be missing, too new for the pinned torch wheels, or
+# the Windows Store stub a LocalSystem service can't launch.
+$pythonExe = Join-Path $PythonDir "python.exe"
+if (-not (Test-Path $pythonExe)) { throw "Bundled Python not found at $pythonExe -- the installer is incomplete" }
+$pythonMinor = (& $pythonExe -c "import sys; print('%d.%d' % sys.version_info[:2])").Trim()
+Write-Host "    Using: $pythonExe ($pythonMinor)"
 
-$pythonExe = Get-RealPython311
-if (-not $pythonExe) {
-    Write-Host "    No suitable Python found -- installing Python 3.11 via winget"
-    winget install --id Python.Python.3.11 -e --silent --accept-package-agreements --accept-source-agreements
-    $pythonExe = Get-RealPython311
-    if (-not $pythonExe) { throw "Python 3.11 install via winget did not produce a usable interpreter" }
+# Venvs live in $DataDir, so they survive upgrades -- including ones built
+# by pre-1.3.0 installers from the user's own Python. Stop the services
+# (they hold the venv's python.exe open) and rebuild any venv that doesn't
+# point at the bundled interpreter, or was built from a different minor
+# version of it, since its compiled wheels won't load otherwise.
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
+Stop-Service -Name bboxai-api, bboxai-agent -Force 2>$null
+$ErrorActionPreference = $prevEap
+
+function Initialize-Venv($dir) {
+    $cfg = Join-Path $dir "pyvenv.cfg"
+    if (Test-Path $dir) {
+        $home_ = $null; $ver = $null
+        if (Test-Path $cfg) {
+            foreach ($line in Get-Content $cfg) {
+                if ($line -match '^\s*home\s*=\s*(.+?)\s*$') { $home_ = $Matches[1] }
+                if ($line -match '^\s*version(_info)?\s*=\s*(\d+\.\d+)') { $ver = $Matches[2] }
+            }
+        }
+        $sameHome = $home_ -and ($home_.TrimEnd('\') -ieq $PythonDir.TrimEnd('\'))
+        if (-not $sameHome -or $ver -ne $pythonMinor) {
+            Write-Host "    $dir was built from '$home_' ($ver) -- rebuilding from bundled Python"
+            Remove-Item -Recurse -Force $dir
+        }
+    }
+    if (-not (Test-Path $dir)) {
+        & $pythonExe "-m" "venv" $dir
+        if ($LASTEXITCODE -ne 0) { throw "Creating venv at $dir failed with exit code $LASTEXITCODE" }
+    }
 }
-Write-Host "    Using: $pythonExe"
 
 Write-Host "==> Setting up bbox-api venv"
-if (-not (Test-Path $VenvDir)) {
-    & $pythonExe "-m" "venv" $VenvDir
-}
+Initialize-Venv $VenvDir
 $venvPython = Join-Path $VenvDir "Scripts\python.exe"
 & $venvPython -m pip install --upgrade pip
 
@@ -164,9 +167,7 @@ if ($verifyHosts -notmatch '(?m)^127\.0\.0\.1\s+bboxai\s*$') {
 }
 
 Write-Host "==> Setting up bbox-agent (tunnels to $RelayUrl for remote access)"
-if (-not (Test-Path $AgentVenvDir)) {
-    & $pythonExe "-m" "venv" $AgentVenvDir
-}
+Initialize-Venv $AgentVenvDir
 $agentPython = Join-Path $AgentVenvDir "Scripts\python.exe"
 & $agentPython -m pip install --upgrade pip
 & $agentPython -m pip install -r (Join-Path $AgentDir "requirements.txt")

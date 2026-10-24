@@ -31,9 +31,9 @@ Linux install still uses Postgres + nginx exactly as before.
 
 | File | Purpose |
 |---|---|
-| `build.ps1` | Run on Windows. Pre-builds `bbox-web`, downloads `nssm.exe`, stages everything, and invokes Inno Setup (`ISCC.exe`) to produce the `.exe`. |
+| `build.ps1` | Run on Windows. Pre-builds `bbox-web`, downloads `nssm.exe` and the bundled Python (checksum-verified), stages everything, and invokes Inno Setup (`ISCC.exe`) to produce the `.exe`. |
 | `bboxai-desktop.iss` | The Inno Setup script — what gets installed where, and which scripts run on install/uninstall. |
-| `install.ps1` | Runs elevated, once, right after Inno Setup copies files. Sets up Python/venv/dependencies for **both** `bbox-api` and `bbox-agent`, SQLite `.env` (including `AGENT_CREDENTIALS_PATH`), the default YOLO weight, both NSSM services (`bboxai-api` and `bboxai-agent`), and the hosts entry. `bboxai-agent` starts immediately and waits for a local account to be registered — remote access activates automatically the first time that happens, no separate step. Idempotent — safe to re-run (e.g. on a version upgrade). |
+| `install.ps1` | Runs elevated, once, right after Inno Setup copies files. Builds venvs/dependencies from the bundled Python for **both** `bbox-api` and `bbox-agent`, SQLite `.env` (including `AGENT_CREDENTIALS_PATH`), the default YOLO weight, both NSSM services (`bboxai-api` and `bboxai-agent`), and the hosts entry. `bboxai-agent` starts immediately and waits for a local account to be registered — remote access activates automatically the first time that happens, no separate step. Idempotent — safe to re-run (e.g. on a version upgrade). |
 | `enable-remote.ps1` | **Manual override only** — not needed for a normal install. Run this (elevated) if you want to force a *different* local account to become the remote-enabled one (`bbox-agent` sticks with whichever account it picked up first). Validates the login against the local `bbox-api`, writes a fresh credentials file, and restarts `bboxai-agent` to pick it up. |
 | `uninstall.ps1` | Runs elevated during uninstall. Stops/removes both services (`bboxai-api` and, if present, `bboxai-agent`), removes the hosts entry, and cleans up files `install.ps1`/`enable-remote.ps1` created at runtime that Inno Setup's own manifest doesn't know about (see "Known limitation" below). Data is **preserved** unless `-Purge` is passed. |
 
@@ -74,7 +74,7 @@ bboxai-desktop-setup-1.0.0.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 ```
 
 On first run it will, in order:
-1. Look for a real Python 3.11+ (see the WindowsApps gotcha below); install one via `winget` if none is found.
+1. Use the **bundled** Python 3.11 at `%ProgramFiles%\bboxai-desktop\python` (see "Bundled Python" below) — the user's own Python, if any, is never used or touched.
 2. Create a venv under `%ProgramData%\bboxai-desktop\venv` and install `bbox-api`'s dependencies (GPU-detected — pulls the CUDA 12.4 `torch` build automatically if `nvidia-smi` is present, otherwise CPU).
 3. Write `%ProgramFiles%\bboxai-desktop\bbox-api\.env` with a random `SECRET_KEY` and a SQLite `DATABASE_URL`.
 4. Download the default `yolo11n.pt` base weight.
@@ -120,6 +120,33 @@ a completely clean slate. This is driven by the `[Code]` section in
 `bboxai-desktop.iss`, which conditionally appends `-Purge` to the
 `uninstall.ps1` invocation based on the answer.
 
+## Bundled Python (since 1.3.0)
+
+The installer ships its own CPython 3.11 from
+[python-build-standalone](https://github.com/astral-sh/python-build-standalone)
+(the `install_only` build — unlike python.org's embeddable zip it includes
+`venv` and `pip`), pinned by version, release tag and SHA-256 at the top of
+`build.ps1`. `.pdb` debug symbols are dropped at staging (~80 MB).
+
+Why: up to 1.2.9, `install.ps1` used whatever Python the user had and only
+fell back to `winget` if none was found. That broke a real user's install
+(2026-10) — a too-new Python passes the `>= 3.11` check but may have no wheels
+for the pinned `torch==2.6.0` (3.13 max), and `winget` is missing on some
+Windows editions.
+
+- **Upgrades from ≤ 1.2.9**: `install.ps1`'s `Initialize-Venv` reads each
+  venv's `pyvenv.cfg` and rebuilds it if its `home` isn't the bundled
+  interpreter or its minor version differs, so venvs built from the user's
+  old Python are replaced automatically (data in `%ProgramData%` is untouched,
+  only the venvs are rebuilt — expect the full dependency download again).
+- **Bumping the bundled Python**: update `$PythonVersion`/`$PythonBuild`/
+  `$PythonSha256` together (hash from the release's `SHA256SUMS`). A minor
+  bump (3.11 → 3.12) triggers a venv rebuild on upgrade; check the pinned
+  `torch` has wheels for it first.
+- **Locked files on upgrade**: the running services hold the bundled
+  Python's DLLs open, so the `.iss` `PrepareToInstall` stops `bboxai-api` /
+  `bboxai-agent` before Inno copies files.
+
 ## Known limitation
 
 Inno Setup's uninstaller only removes files it explicitly installed. Two
@@ -140,10 +167,9 @@ reading before re-deriving them:
   (`%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe`). It works fine
   interactively but is completely inaccessible to a `LocalSystem` service —
   a venv built from it can never actually launch as a service, and the error
-  NSSM gives back is nowhere near obvious about why. `install.ps1`'s
-  `Get-RealPython311` explicitly detects and rejects `WindowsApps` matches
-  and resolves to a real, absolute interpreter path, falling back to
-  installing Python 3.11 via `winget` if nothing else qualifies.
+  NSSM gives back is nowhere near obvious about why. Up to 1.2.9
+  `install.ps1` worked around this by rejecting `WindowsApps` matches; since
+  1.3.0 it sidesteps the whole problem by only ever using the bundled Python.
 - **`psycopg2-binary` fails to build** ("`pg_config` executable not found")
   on newer Python versions that don't have a prebuilt wheel for it yet. It's
   a Postgres driver — completely unneeded on Windows since this uses SQLite
