@@ -3,7 +3,10 @@
 # fetch nssm.exe). Pre-builds bbox-web once here so end users never need
 # Node.js at install time.
 param(
-    [string]$IsccPath = "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+    [string]$IsccPath = "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+    # Local win64 nssm.exe to use when nssm.cc is down (it 503s often); by
+    # default a winget-installed copy (winget install NSSM.NSSM) is tried
+    [string]$NssmPath = ""
 )
 $ErrorActionPreference = "Stop"
 
@@ -63,11 +66,26 @@ if (-not (Test-Path "$StageDir\python\python.exe")) { throw "Bundled Python stag
 
 Write-Host "==> Fetching nssm.exe"
 $nssmZip = Join-Path $env:TEMP "nssm.zip"
-Invoke-WebRequest -Uri "https://nssm.cc/ci/nssm-2.24-101-g897c7ad.zip" -OutFile $nssmZip
 $nssmExtract = Join-Path $env:TEMP "nssm-extract"
 Remove-Item -Recurse -Force $nssmExtract -ErrorAction SilentlyContinue
-Expand-Archive -Path $nssmZip -DestinationPath $nssmExtract
-Copy-Item (Get-ChildItem -Path $nssmExtract -Filter nssm.exe -Recurse | Where-Object { $_.FullName -match "win64" } | Select-Object -First 1).FullName "$StageDir\nssm.exe"
+try {
+    Invoke-WebRequest -Uri "https://nssm.cc/ci/nssm-2.24-101-g897c7ad.zip" -OutFile $nssmZip
+    Expand-Archive -Path $nssmZip -DestinationPath $nssmExtract
+} catch {
+    Write-Host "    nssm.cc download failed ($($_.Exception.Message)) -- looking for a local copy"
+    if (-not $NssmPath) {
+        $NssmPath = (Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Filter nssm.exe -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "win64" } | Select-Object -First 1).FullName
+    }
+}
+if (Test-Path $nssmExtract) {
+    $NssmPath = (Get-ChildItem -Path $nssmExtract -Filter nssm.exe -Recurse | Where-Object { $_.FullName -match "win64" } | Select-Object -First 1).FullName
+}
+if (-not $NssmPath -or -not (Test-Path $NssmPath)) {
+    throw "No nssm.exe: nssm.cc is unreachable and no local copy found -- pass -NssmPath or winget install NSSM.NSSM"
+}
+Write-Host "    using $NssmPath"
+Copy-Item $NssmPath "$StageDir\nssm.exe"
 
 Write-Host "==> Compiling installer with Inno Setup"
 if (-not (Test-Path $IsccPath)) {
