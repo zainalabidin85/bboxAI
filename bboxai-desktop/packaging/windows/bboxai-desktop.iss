@@ -78,11 +78,12 @@ begin
   begin
     DataDir := ExpandConstant('{commonappdata}\bboxai-desktop');
     PurgeArg := '';
-    // MB_DEFBUTTON2 makes "No" the default -- matters not just for Enter/Esc,
-    // but because /SUPPRESSMSGBOXES (used by scripted/silent uninstalls)
-    // auto-answers with whichever button is default. Without this, a silent
-    // uninstall would auto-purge all data with no way to opt out.
-    if MsgBox('Also delete all bboxAI data -- accounts, projects, annotations, and trained models -- stored in:' + #13#10 + DataDir + #13#10#13#10 + 'This cannot be undone. Choose No to keep this data (e.g. to reinstall later without losing it).', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    // Must be SuppressibleMsgBox, not MsgBox: /SUPPRESSMSGBOXES does not
+    // suppress a plain MsgBox, so a scripted /VERYSILENT uninstall (e.g. over
+    // SSH, where nobody can see the dialog) hung on it forever. Suppressed,
+    // it answers IDNO -- a silent uninstall keeps the data. MB_DEFBUTTON2
+    // keeps "No" the default for Enter/Esc in the interactive case too.
+    if SuppressibleMsgBox('Also delete all bboxAI data -- accounts, projects, annotations, and trained models -- stored in:' + #13#10 + DataDir + #13#10#13#10 + 'This cannot be undone. Choose No to keep this data (e.g. to reinstall later without losing it).', mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES then
       PurgeArg := ' -Purge';
 
     Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}') + '\uninstall.ps1" -AppDir "' + ExpandConstant('{app}') + '" -DataDir "' + DataDir + '"' + PurgeArg, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
