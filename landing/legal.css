@@ -38,3 +38,5 @@ h2 { font-size: 1.15rem; margin: 28px 0 8px; }
 li { margin-bottom: 6px; }
 footer { color: var(--muted); font-size: 0.9rem; text-align: center; padding-bottom: 40px; }
 footer a { color: var(--muted); margin: 0 8px; }
+.unitani-badge { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border:1px solid #cfe3d5; border-radius:999px; background:#f3f8f4; color:#1f7a3f; font:600 13px system-ui,-apple-system,'Segoe UI',sans-serif; text-decoration:none; white-space:nowrap; }
+@media (prefers-color-scheme: dark) { .unitani-badge { border-color:#5ee08a; background:transparent; color:#5ee08a; } }
